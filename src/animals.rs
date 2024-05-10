@@ -33,16 +33,16 @@ impl Herbivore {
     pub const W_BIRTH: f32 = 10.0;
     pub const MU: f32 = 17.0;
     pub const SIGMA_BIRTH: f32 = 4.0;
-    pub const BETA: f64 = 0.05;
-    pub const ETA: f64 = 0.2;
-    pub const A_HALF: f64 = 2.5;
-    pub const PHI_AGE: f64 = 5.0;
-    pub const W_HALF: f64 = 3.0;
-    pub const PHI_WEIGHT: f64 = 0.09;
-    pub const GAMMA: f64 = 0.9;
-    pub const ZETA: f64 = 0.22;
-    pub const XI: f64 = 0.42;
-    pub const OMEGA: f64 = 0.4;
+    pub const BETA: f32 = 0.05;
+    pub const ETA: f32 = 0.2;
+    pub const A_HALF: f32 = 2.5;
+    pub const PHI_AGE: f32 = 5.0;
+    pub const W_HALF: f32 = 3.0;
+    pub const PHI_WEIGHT: f32 = 0.09;
+    pub const GAMMA: f32 = 0.9;
+    pub const ZETA: f32 = 0.22;
+    pub const XI: f32 = 0.42;
+    pub const OMEGA: f32 = 0.4;
     pub const F: u32 = 20;
     pub const DELTA_PHI_MAX: u8 = 10;
 
@@ -69,7 +69,7 @@ impl Herbivore {
         self.animal.weight -= Herbivore::ETA * self.animal.weight
     }
 
-    pub fn lose_weight_birth(&mut self, baby_weight: f64) -> bool {
+    pub fn lose_weight_birth(&mut self, baby_weight: f32) -> bool {
         if self.animal.weight > Herbivore::XI * baby_weight {
             self.animal.weight -= Herbivore::XI * baby_weight;
             self.calculate_fitness();
@@ -84,11 +84,11 @@ impl Herbivore {
             self.animal.fitness = Some(0.0f32);
         } else {
             let q_pos = (1.0
-                + f64::exp(Herbivore::PHI_AGE * (self.animal.age as f64 - Herbivore::A_HALF)))
+                + f32::exp(Herbivore::PHI_AGE * (self.animal.age as f32 - Herbivore::A_HALF)))
             .powf(-1.0);
 
             let q_neg = (1.0
-                + f64::exp(-Herbivore::PHI_WEIGHT * (self.animal.weight - Herbivore::W_HALF)))
+                + f32::exp(-Herbivore::PHI_WEIGHT * (self.animal.weight - Herbivore::W_HALF)))
             .powf(-1.0);
 
             self.animal.fitness = Some((q_pos * q_neg) as f32);
@@ -124,16 +124,16 @@ impl Carnivore {
     pub const W_BIRTH: f32 = 6.0;
     pub const MU: f32 = 0.4;
     pub const SIGMA_BIRTH: f32 = 1.0;
-    pub const BETA: f64 = 0.6;
-    pub const ETA: f64 = 0.125;
-    pub const A_HALF: f64 = 40.0;
-    pub const PHI_AGE: f64 = 0.45;
-    pub const W_HALF: f64 = 4.0;
-    pub const PHI_WEIGHT: f64 = 0.28;
-    pub const GAMMA: f64 = 0.8;
-    pub const ZETA: f64 = 3.5;
-    pub const XI: f64 = 1.1;
-    pub const OMEGA: f64 = 0.3;
+    pub const BETA: f32 = 0.6;
+    pub const ETA: f32 = 0.125;
+    pub const A_HALF: f32 = 40.0;
+    pub const PHI_AGE: f32 = 0.45;
+    pub const W_HALF: f32 = 4.0;
+    pub const PHI_WEIGHT: f32 = 0.28;
+    pub const GAMMA: f32 = 0.8;
+    pub const ZETA: f32 = 3.5;
+    pub const XI: f32 = 1.1;
+    pub const OMEGA: f32 = 0.3;
     pub const F: u32 = 70;
     pub const DELTA_PHI_MAX: u8 = 10;
 
@@ -160,7 +160,7 @@ impl Carnivore {
         self.animal.weight -= Carnivore::ETA * self.animal.weight
     }
 
-    pub fn lose_weight_birth(&mut self, baby_weight: f64) -> bool {
+    pub fn lose_weight_birth(&mut self, baby_weight: f32) -> bool {
         if self.animal.weight > Carnivore::XI * baby_weight {
             self.animal.weight -= Carnivore::XI * baby_weight;
             self.calculate_fitness();
@@ -175,11 +175,11 @@ impl Carnivore {
             self.animal.fitness = Some(0.0f32);
         } else {
             let q_pos = (1.0
-                + f64::exp(Carnivore::PHI_AGE * (self.animal.age as f64 - Carnivore::A_HALF)))
+                + f32::exp(Carnivore::PHI_AGE * (self.animal.age as f32 - Carnivore::A_HALF)))
             .powf(-1.0);
 
             let q_neg = (1.0
-                + f64::exp(-Carnivore::PHI_WEIGHT * (self.animal.weight - Carnivore::W_HALF)))
+                + f32::exp(-Carnivore::PHI_WEIGHT * (self.animal.weight - Carnivore::W_HALF)))
             .powf(-1.0);
 
             self.animal.fitness = Some((q_pos * q_neg) as f32);

@@ -1,5 +1,6 @@
 use rand::Rng;
 pub mod animals;
+mod island;
 
 fn main() {
     let mut rng = rand::thread_rng();
