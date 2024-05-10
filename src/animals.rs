@@ -1,16 +1,23 @@
 use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
+use crate::animals;
+
+pub enum Species {
+    Herbivore(Herbivore),
+    Carnivore(Carnivore),
+}
+
 
 pub struct Animal {
-    pub weight: f64,
+    pub weight: f32,
     pub age: u32,
     pub fitness: Option<f32>,
 }
 
 impl Animal {
     pub fn gain_weight(&mut self, food: u32) {
-        self.weight += food as f64;
+        self.weight += food as f32;
     }
 
     pub fn aging(&mut self) {
