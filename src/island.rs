@@ -1,19 +1,22 @@
 use rand::prelude::ThreadRng;
 use crate::animals;
 
-pub struct Island {
+pub struct Island<'a> {
     pub year: u16,
     pub geography: Vec<Vec<char>>,
 
     pub cells: Vec<Vec<(Vec<animals::Herbivore>, Vec<animals::Carnivore>)>>,
     pub inhabited: Vec<(usize, usize)>,
 
+    // 'a is a lifetime, meaning that rng lives as long as Island.
+    pub rng: &'a mut ThreadRng,
+
     // geography : Contains the terrain types at each index-pair.
     // cells     : Contains the actual animals of each cell.
     // inhabited : Contains indices of inhabited cells.
 }
 
-impl Island {
+impl Island<'_> {
     pub const H: u16 = 300;
     pub const L: u16 = 800;
     pub const M: u16 = 0;
@@ -21,7 +24,7 @@ impl Island {
     pub const ALPHA: f32 = 0.1;
     pub const V_MAX: u16 = 800;
 
-    pub fn new(geography: Vec<Vec<char>>) -> Island {
+    pub fn new(geography: Vec<Vec<char>>, rng: &mut ThreadRng) -> Island {
         let mut cells = geography.iter()
             .map(|row| {
                 row.iter()
@@ -32,7 +35,8 @@ impl Island {
 
         Island {
             year: 0,
-            geography, cells, inhabited
+            geography, cells, inhabited,
+            rng
         }
     }
 
@@ -49,7 +53,7 @@ impl Island {
             let cell = &mut self.cells[item.0][item.1];
 
             // Create the number of specified animals and push to respective vector.
-            for i in 0..item.3 {
+            for _ in 0..item.3 {
                 match item.2 {
                     'h' => {
                         let herbivore = animals::Herbivore {
