@@ -1,4 +1,6 @@
-use rand_distr::{LogNormal, Distribution};
+use rand::Rng;
+use rand::rngs::ThreadRng;
+use rand_distr::{Distribution, LogNormal};
 
 pub struct Animal {
     pub weight: f64,
@@ -39,17 +41,17 @@ impl Herbivore {
 
     pub const STRIDE: u8 = 1;
 
-    pub fn birthweight() -> f32 {
+    pub fn birthweight(rng: &mut ThreadRng) -> f32 {
         let mean = f32::ln(
             Herbivore::W_BIRTH.powf(2.0)
-                / (Herbivore::W_BIRTH.powf(2.0)  + Herbivore::SIGMA_BIRTH.powf(2.0)).sqrt()
+                / (Herbivore::W_BIRTH.powf(2.0) + Herbivore::SIGMA_BIRTH.powf(2.0)).sqrt(),
         );
-        let std = f32::ln(
-            1.0f32 + ((Herbivore::SIGMA_BIRTH.powf(2.0)) / (Herbivore::W_BIRTH.powf(2.0)))
-        ).sqrt();
+        let std =
+            f32::ln(1.0f32 + ((Herbivore::SIGMA_BIRTH.powf(2.0)) / (Herbivore::W_BIRTH.powf(2.0))))
+                .sqrt();
 
         let log_normal = LogNormal::new(mean, std).unwrap();
-        log_normal.sample(&mut rand::thread_rng())
+        log_normal.sample(rng)
     }
 
     pub fn aging(&mut self) {
@@ -74,15 +76,13 @@ impl Herbivore {
         if self.animal.weight <= 0.0 {
             self.animal.fitness = Some(0.0f32);
         } else {
-            let q_pos = (
-                1.0 + f64::exp(Herbivore::PHI_AGE
-                    * (self.animal.age as f64 - Herbivore::A_HALF))
-            ).powf(-1.0);
+            let q_pos = (1.0
+                + f64::exp(Herbivore::PHI_AGE * (self.animal.age as f64 - Herbivore::A_HALF)))
+            .powf(-1.0);
 
-            let q_neg = (
-                1.0 + f64::exp(-Herbivore::PHI_WEIGHT
-                    * (self.animal.weight - Herbivore::W_HALF))
-            ).powf(-1.0);
+            let q_neg = (1.0
+                + f64::exp(-Herbivore::PHI_WEIGHT * (self.animal.weight - Herbivore::W_HALF)))
+            .powf(-1.0);
 
             self.animal.fitness = Some((q_pos * q_neg) as f32);
         }
@@ -93,8 +93,8 @@ impl Herbivore {
             None => {
                 self.calculate_fitness();
                 self.animal.fitness.unwrap()
-            },
-            _ => self.animal.fitness.unwrap()
+            }
+            _ => self.animal.fitness.unwrap(),
         }
     }
 
@@ -132,17 +132,17 @@ impl Carnivore {
 
     pub const STRIDE: u8 = 3;
 
-    pub fn birthweight() -> f32 {
+    pub fn birthweight(rng: &mut ThreadRng) -> f32 {
         let mean = f32::ln(
             Carnivore::W_BIRTH.powf(2.0)
-                / (Carnivore::W_BIRTH.powf(2.0)  + Carnivore::SIGMA_BIRTH.powf(2.0)).sqrt()
+                / (Carnivore::W_BIRTH.powf(2.0) + Carnivore::SIGMA_BIRTH.powf(2.0)).sqrt(),
         );
-        let std = f32::ln(
-            1.0f32 + ((Carnivore::SIGMA_BIRTH.powf(2.0)) / (Carnivore::W_BIRTH.powf(2.0)))
-        ).sqrt();
+        let std =
+            f32::ln(1.0f32 + ((Carnivore::SIGMA_BIRTH.powf(2.0)) / (Carnivore::W_BIRTH.powf(2.0))))
+                .sqrt();
 
         let log_normal = LogNormal::new(mean, std).unwrap();
-        log_normal.sample(&mut rand::thread_rng())
+        log_normal.sample(rng)
     }
 
     pub fn aging(&mut self) {
@@ -167,15 +167,13 @@ impl Carnivore {
         if self.animal.weight <= 0.0 {
             self.animal.fitness = Some(0.0f32);
         } else {
-            let q_pos = (
-                1.0 + f64::exp(Carnivore::PHI_AGE
-                    * (self.animal.age as f64 - Carnivore::A_HALF))
-            ).powf(-1.0);
+            let q_pos = (1.0
+                + f64::exp(Carnivore::PHI_AGE * (self.animal.age as f64 - Carnivore::A_HALF)))
+            .powf(-1.0);
 
-            let q_neg = (
-                1.0 + f64::exp(-Carnivore::PHI_WEIGHT
-                    * (self.animal.weight - Carnivore::W_HALF))
-            ).powf(-1.0);
+            let q_neg = (1.0
+                + f64::exp(-Carnivore::PHI_WEIGHT * (self.animal.weight - Carnivore::W_HALF)))
+            .powf(-1.0);
 
             self.animal.fitness = Some((q_pos * q_neg) as f32);
         }
@@ -186,16 +184,17 @@ impl Carnivore {
             None => {
                 self.calculate_fitness();
                 self.animal.fitness.unwrap()
-            },
-            _ => self.animal.fitness.unwrap()
+            }
+            _ => self.animal.fitness.unwrap(),
         }
     }
 
-    pub fn predation(&mut self, herbivores: &mut Vec<Herbivore>) -> u32 {
-        let mut eaten: f64 = 0.0;
-        let delta_phi_max: u8 = Carnivore::DELTA_PHI_MAX;
+    pub fn predation(&mut self, rng: &mut ThreadRng, herbivores: &mut Vec<Herbivore>) -> u32 {
+        let mut eaten: u32 = 0;
+        let delta_phi_max: f32 = Carnivore::DELTA_PHI_MAX as f32;
+        let mut removing: Vec<usize> = Vec::new();
 
-        for herbivore in herbivores {
+        for (idx, herbivore) in herbivores.iter_mut().enumerate() {
             let herbivore_fitness = herbivore.fitness();
             let carnivore_fitness = self.fitness();
             let difference = carnivore_fitness - herbivore_fitness;
@@ -203,23 +202,30 @@ impl Carnivore {
             let prob: f32;
             if carnivore_fitness <= herbivore_fitness {
                 prob = 0.0;
-            } else if  (0.0 < difference && difference < delta_phi_max as f32) {
+            } else if 0.0 < difference && difference < delta_phi_max {
                 prob = difference / delta_phi_max;
             } else {
                 prob = 1.0;
             }
 
-            if rand::thread_rng().s < prob {
-                herbivores.remove(herbivore);
+            if rng.gen::<f32>() < prob {
+                removing.push(idx);
+
                 let rest = Carnivore::F - eaten;
-                if herbivore.animal.weight < rest {
-                    eaten += herbivore.animal.weight;
-                    self.animal.gain_weight(herbivore.animal.weight);
+                let herbivore_weight: u32 = herbivore.animal.weight as u32;
+
+                if herbivore_weight < rest {
+                    eaten += herbivore_weight;
+                    self.animal.gain_weight(herbivore_weight);
                 } else {
                     self.animal.gain_weight(rest);
-                    break
+                    break;
                 }
             }
         }
+        for idx in removing.iter().rev() {
+            herbivores.remove(*idx);
+        }
+        eaten
     }
 }
