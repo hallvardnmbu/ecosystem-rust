@@ -1,3 +1,14 @@
+mod animals;
+
 fn main() {
-    println!("Hello, world!");
+    let mut herb = animals::Herbivore {
+        animal: animals::Animal {
+            weight: 5.0,
+            age: 0,
+            fitness: None,
+        },
+    };
+    herb.aging();
+
+    println!("{}", herb.fitness())
 }
