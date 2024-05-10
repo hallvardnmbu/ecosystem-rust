@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::animals;
     use rand::rngs::ThreadRng;
     use rand::thread_rng;
 
     #[test]
     fn test_animal_gain_weight() {
-        let mut animal = *::animals::Animal {
+        let mut animal = animals::Animal {
             weight: 5.0,
             age: 0,
             fitness: None,
