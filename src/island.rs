@@ -4,8 +4,9 @@ use crate::animals;
 pub struct Island {
     pub year: u16,
     pub geography: Vec<Vec<char>>,
+
     pub cells: Vec<Vec<(Vec<animals::Herbivore>, Vec<animals::Carnivore>)>>,
-    pub inhabited: Vec<(u8, u8)>,
+    pub inhabited: Vec<(usize, usize)>,
 
     // geography : Contains the terrain types at each index-pair.
     // cells     : Contains the actual animals of each cell.
@@ -20,44 +21,55 @@ impl Island {
     pub const ALPHA: f32 = 0.1;
     pub const V_MAX: u16 = 800;
 
-    pub fn new(map: Vec<Vec<char>>) {
+    pub fn new(geography: Vec<Vec<char>>) -> Island {
+        let mut cells = geography.iter()
+            .map(|row| {
+                row.iter()
+                    .map(|_| (Vec::<animals::Herbivore>::new(),
+                              Vec::<animals::Carnivore>::new())).collect::<Vec<_>>()
+            }).collect::<Vec<_>>();
+        let mut inhabited = Vec::<(usize, usize)>::new();
 
+        Island {
+            year: 0,
+            geography, cells, inhabited
+        }
     }
 
     // Input: vec![((x, y, 'X', Y)]
     // Where x, y is the coordinate
     // and 'X', Y the species and amount; 'h': Herbivore, 'c': Carnivore
-    pub fn add_population(&mut self, rng: &mut ThreadRng, population: Vec<(u8, u8, char, u16)>) {
+    pub fn add_population(&mut self, rng: &mut ThreadRng, population: Vec<(usize, usize, char, u16)>) {
         for item in population.iter() {
 
             // Update inhabited vector with current index-pair.
-            self.inhabited.push((*item.0, *item.1));
+            self.inhabited.push((item.0, item.1));
 
             // Retrive the current cell for memory efficiency.
-            let mut cell = self.cells[*item.0][*item.1];
+            let cell = &mut self.cells[item.0][item.1];
 
             // Create the number of specified animals and push to respective vector.
-            for i in 0..*item.3 {
-                match *item.2 {
+            for i in 0..item.3 {
+                match item.2 {
                     'h' => {
-                        let herbivore = animals::Species::Herbivore(animals::Herbivore {
+                        let herbivore = animals::Herbivore {
                             animal: animals::Animal {
                                 weight: animals::Herbivore::birthweight(rng),
                                 age: 0,
                                 fitness: None
                             }
-                        });
-                        cell[0].push(herbivore);
+                        };
+                        cell.0.push(herbivore);
                     },
                     'c' => {
-                        let carnivore = animals::Species::Carnivore(animals::Carnivore {
+                        let carnivore = animals::Carnivore {
                             animal: animals::Animal {
                                 weight: animals::Carnivore::birthweight(rng),
                                 age: 0,
                                 fitness: None
                             }
-                        });
-                        cell[1].push(carnivore);
+                        };
+                        cell.1.push(carnivore);
                     },
                     _ => panic!(
                         "Unknown species. \

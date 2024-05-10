@@ -1,14 +1,8 @@
 use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
-use crate::animals;
 
-pub enum Species {
-    Herbivore(Herbivore),
-    Carnivore(Carnivore),
-}
-
-
+#[derive(Debug)]
 pub struct Animal {
     pub weight: f32,
     pub age: u32,
@@ -25,6 +19,7 @@ impl Animal {
     }
 }
 
+#[derive(Debug)]
 pub struct Herbivore {
     pub animal: Animal,
 }
@@ -116,6 +111,7 @@ impl Herbivore {
     }
 }
 
+#[derive(Debug)]
 pub struct Carnivore {
     pub animal: Animal,
 }

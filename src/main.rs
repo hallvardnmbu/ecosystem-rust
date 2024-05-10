@@ -1,4 +1,5 @@
 use rand::Rng;
+
 pub mod animals;
 mod island;
 
@@ -14,5 +15,11 @@ fn main() {
     };
     herb.aging();
 
-    println!("{}", herb.fitness())
+    println!("{}", herb.fitness());
+
+    let geography = vec![vec!['W', 'L'], vec!['W', 'W']];
+
+    let isl = island::Island::new(geography);
+
+    println!("{:?}", isl.cells);
 }
