@@ -25,6 +25,17 @@ impl Island<'_> {
     pub const V_MAX: u16 = 800;
 
     pub fn new(geography: Vec<Vec<char>>, rng: &mut ThreadRng) -> Island {
+        for row in geography.iter() {
+            assert_eq!(*row.first().unwrap(), 'W', "Edges must be 'W' (water)!");
+            assert_eq!(*row.last().unwrap(), 'W', "Edges must be 'W' (water)!");
+        }
+        for element in geography.first().unwrap() {
+            assert_eq!(*element, 'W', "Edges must be 'W' (water)!");
+        }
+        for element in geography.last().unwrap() {
+            assert_eq!(*element, 'W', "Edges must be 'W' (water)!");
+        }
+
         let mut cells = geography.iter()
             .map(|row| {
                 row.iter()
