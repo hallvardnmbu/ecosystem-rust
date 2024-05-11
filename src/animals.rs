@@ -2,11 +2,6 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
 
-enum Species {
-    Herbivore(Herbivore),
-    Carnivore(Carnivore),
-}
-
 #[derive(Debug, PartialEq)]
 pub struct Herbivore {
     pub weight: f32,
@@ -31,7 +26,7 @@ impl Herbivore {
     pub const F: u16 = 20;
     pub const DELTA_PHI_MAX: u8 = 10;
 
-    pub const STRIDE: u8 = 1;
+    pub const STRIDE: usize = 1;
 
     pub const PROCREATE: f32 = Herbivore::ZETA * (Herbivore::W_BIRTH + Herbivore::SIGMA_BIRTH);
 
