@@ -15,11 +15,13 @@ fn main() {
 
     println!("Fitness: {}", herb.fitness());
 
-    let geography = vec![vec!['W', 'W'], vec!['W', 'W']];
+    let geography = vec![vec!['W', 'W', 'W'], vec!['W', 'L', 'W'], vec!['W', 'W', 'W']];
 
-    let isl = island::Island::new(geography, &mut rng);
+    let mut isl = island::Island::new(geography, &mut rng);
 
     println!("Cells: {:?}", isl.cells);
     println!("Checking the rng of Island: u8: {} f32: {}", isl.rng.gen::<u8>(), isl.rng.gen::<f32>
     ());
+
+    isl.procreate();
 }

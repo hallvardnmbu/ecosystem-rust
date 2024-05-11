@@ -6,7 +6,7 @@ pub struct Island<'a> {
     pub year: u16,
     pub geography: Vec<Vec<char>>,
 
-    pub cells: Vec<Vec<(Vec<Herbivore>, Vec<Carnivore>)>>,
+    pub cells: Vec<Vec<Cell>>,
     pub inhabited: Vec<(usize, usize)>,
 
     // 'a is a lifetime, meaning that rng lives as long as Island.
@@ -18,13 +18,6 @@ pub struct Island<'a> {
 }
 
 impl Island<'_> {
-    pub const H: u16 = 300;
-    pub const L: u16 = 800;
-    pub const M: u16 = 0;
-    pub const W: u16 = 0;
-    pub const ALPHA: f32 = 0.1;
-    pub const V_MAX: u16 = 800;
-
     pub fn new(geography: Vec<Vec<char>>, rng: &mut ThreadRng) -> Island {
         for row in geography.iter() {
             assert_eq!(*row.first().unwrap(), 'W', "Edges must be 'W' (water)!");
@@ -37,12 +30,28 @@ impl Island<'_> {
             assert_eq!(*element, 'W', "Edges must be 'W' (water)!");
         }
 
-        let mut cells = geography.iter()
-            .map(|row| {
-                row.iter()
-                    .map(|_| (Vec::<Herbivore>::new(),
-                              Vec::<Carnivore>::new())).collect::<Vec<_>>()
-            }).collect::<Vec<_>>();
+        let mut cells: Vec<Vec<Cell>> = Vec::new();
+        for (i, row) in geography.iter().enumerate() {
+            let mut _cells: Vec<Cell> = Vec::new();
+            for (j, landscape) in row.iter().enumerate() {
+                let fodder = match landscape {
+                    'H' => 300u16,
+                    'L' => 800u16,
+                    'M' => 0u16,
+                    'W' => 0u16,
+                    _ => panic!("Unknown landscape type!")
+                };
+                let cell = Cell {
+                    fodder, f_max: fodder,
+                    animals: (
+                        Vec::<Herbivore>::new(), Vec::<Carnivore>::new()
+                    )
+                };
+                _cells.push(cell);
+            }
+            cells.push(_cells);
+        }
+
         let mut inhabited = Vec::<(usize, usize)>::new();
 
         Island {
@@ -73,7 +82,7 @@ impl Island<'_> {
                             age: 0,
                             fitness: None
                         };
-                        cell.0.push(herbivore);
+                        cell.animals.0.push(herbivore);
                     },
                     'c' => {
                         let carnivore = Carnivore {
@@ -81,7 +90,7 @@ impl Island<'_> {
                             age: 0,
                             fitness: None
                         };
-                        cell.1.push(carnivore);
+                        cell.animals.1.push(carnivore);
                     },
                     _ => panic!(
                         "Unknown species. \
@@ -96,19 +105,20 @@ impl Island<'_> {
         for (x, y) in self.inhabited.iter() {
 
             // Loop through the Herbivoress of the cell:
-            let p_herb = Herbivore::GAMMA *  self.cells[x][y][0].len();
-            for herbivore in self.cells[x][y][0].iter() {
+            let p_herb = Herbivore::GAMMA *  self.cells[*x][*y].animals.0.len() as f32;
+            let mut b_herb: Vec<Herbivore> = Vec::new();
+            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
                 if herbivore.weight < Herbivore::PROCREATE {
                     continue
                 }
-                if self.rng.gen::<f32>() >= herbivore.fitness * p_herb {
+                if self.rng.gen::<f32>() >= herbivore.fitness.unwrap() * p_herb {
                     continue
                 }
                 let babyweight = Herbivore::birthweight(self.rng);
                 if !herbivore.lose_weight_birth(babyweight) {
                     continue
                 }
-                self.cells[x][y][0].push(
+                b_herb.push(
                     Herbivore {
                         weight: babyweight,
                         age: 0,
@@ -116,21 +126,23 @@ impl Island<'_> {
                     }
                 )
             }
+            self.cells[*x][*y].animals.0.append(&mut b_herb);
 
             // Loop through the Carnivores of the cell:
-            let p_carn = Carnivore::GAMMA *  self.cells[x][y][1].len();
-            for carnivore in self.cells[x][y][1].iter() {
+            let p_carn = Carnivore::GAMMA *  self.cells[*x][*y].animals.1.len() as f32;
+            let mut b_carn: Vec<Carnivore> = Vec::new();
+            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
                 if carnivore.weight < Carnivore::PROCREATE {
                     continue
                 }
-                if self.rng.gen::<f32>() >= carnivore.fitness * p_carn {
+                if self.rng.gen::<f32>() >= carnivore.fitness.unwrap() * p_carn {
                     continue
                 }
                 let babyweight = Carnivore::birthweight(self.rng);
                 if !carnivore.lose_weight_birth(babyweight) {
                     continue
                 }
-                self.cells[x][y][0].push(
+                b_carn.push(
                     Carnivore {
                         weight: babyweight,
                         age: 0,
@@ -138,6 +150,71 @@ impl Island<'_> {
                     }
                 )
             }
+            self.cells[*x][*y].animals.1.append(&mut b_carn);
         }
+    }
+
+    // fn feed(&mut self) {
+    //
+    // }
+    //
+    // fn migrate(&mut self) {
+    //
+    // }
+    //
+    // fn update_inhabitet(&mut self) {
+    //
+    // }
+    //
+    // fn aging(&mut self) {
+    //
+    // }
+    //
+    // fn weight_loss(&mut self) {
+    //
+    // }
+    //
+    // fn death(&mut self) {
+    //
+    // }
+    //
+    // pub fn yearly_cycle(&mut self) {
+    //
+    // }
+    //
+    // pub fn animals(&mut self) {
+    //
+    // }
+    //
+    // fn grow_fodder(&mut self) {
+    //
+    // }
+}
+
+#[derive(Debug)]
+pub struct Cell {
+    pub f_max: u16,
+    pub fodder: u16,
+    pub animals:  (
+        Vec::<Herbivore>,
+        Vec::<Carnivore>
+    ),
+}
+
+impl Cell {
+    pub const ALPHA: f32 = 0.1;
+    pub const V_MAX: u16 = 800;
+
+    pub fn grow_fodder(&mut self) {
+        if self.f_max == 0 {
+            return
+        }
+        self.fodder = self.fodder.min(
+            self.fodder + Cell::V_MAX * (
+                1.0
+                    - Cell::ALPHA
+                    * (self.f_max - self.fodder) as f32
+                    / self.f_max as f32
+            ) as u16);
     }
 }

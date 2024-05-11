@@ -2,6 +2,11 @@ use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
 
+enum Species {
+    Herbivore(Herbivore),
+    Carnivore(Carnivore),
+}
+
 #[derive(Debug)]
 pub struct Herbivore {
     pub weight: f32,
@@ -27,6 +32,8 @@ impl Herbivore {
     pub const DELTA_PHI_MAX: u8 = 10;
 
     pub const STRIDE: u8 = 1;
+
+    pub const PROCREATE: f32 = Herbivore::ZETA * (Herbivore::W_BIRTH + Herbivore::SIGMA_BIRTH);
 
     pub fn birthweight(rng: &mut ThreadRng) -> f32 {
         let mean = f32::ln(
@@ -125,6 +132,8 @@ impl Carnivore {
     pub const DELTA_PHI_MAX: u8 = 10;
 
     pub const STRIDE: u8 = 3;
+
+    pub const PROCREATE: f32 = Carnivore::ZETA * (Carnivore::W_BIRTH + Carnivore::SIGMA_BIRTH);
 
     pub fn birthweight(rng: &mut ThreadRng) -> f32 {
         let mean = f32::ln(
