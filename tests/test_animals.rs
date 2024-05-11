@@ -1,3 +1,5 @@
+#[path = "../src/animals.rs"] mod animals;
+
 #[cfg(test)]
 mod tests {
     use crate::animals;
@@ -6,24 +8,24 @@ mod tests {
 
     #[test]
     fn test_animal_gain_weight() {
-        let mut animal = animals::Animal {
+        let mut individual = animals::Animal {
             weight: 5.0,
             age: 0,
             fitness: None,
         };
-        animal.gain_weight(5);
-        assert_eq!(animal.weight, 10.0);
+        individual.gain_weight(5);
+        assert_eq!(individual.weight, 10.0);
     }
 
     #[test]
     fn test_animal_aging() {
-        let mut animal = animals::Animal {
+        let mut individual = animals::Animal {
             weight: 5.0,
             age: 0,
             fitness: None,
         };
-        animal.aging();
-        assert_eq!(animal.age, 1);
+        individual.aging();
+        assert_eq!(individual.age, 1);
     }
 
     #[test]
