@@ -68,21 +68,17 @@ impl Island<'_> {
                 match item.2 {
                     'h' => {
                         let herbivore = animals::Herbivore {
-                            animal: animals::Animal {
-                                weight: animals::Herbivore::birthweight(rng),
-                                age: 0,
-                                fitness: None
-                            }
+                            weight: animals::Herbivore::birthweight(rng),
+                            age: 0,
+                            fitness: None
                         };
                         cell.0.push(herbivore);
                     },
                     'c' => {
                         let carnivore = animals::Carnivore {
-                            animal: animals::Animal {
-                                weight: animals::Carnivore::birthweight(rng),
-                                age: 0,
-                                fitness: None
-                            }
+                            weight: animals::Carnivore::birthweight(rng),
+                            age: 0,
+                            fitness: None
                         };
                         cell.1.push(carnivore);
                     },
@@ -92,6 +88,15 @@ impl Island<'_> {
                     ),
                 };
             }
+        }
+    }
+
+    // geography : Contains the terrain types at each index-pair.
+    // cells     : Contains the actual animals of each cell.
+    // inhabited : Contains indices of inhabited cells.
+    pub fn procreate(&mut self) {
+        for (x, y) in self.inhabited.iter() {
+
         }
     }
 }

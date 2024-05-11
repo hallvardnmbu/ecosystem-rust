@@ -3,25 +3,10 @@ use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
 
 #[derive(Debug)]
-pub struct Animal {
+pub struct Herbivore {
     pub weight: f32,
     pub age: u32,
     pub fitness: Option<f32>,
-}
-
-impl Animal {
-    pub fn gain_weight(&mut self, food: u32) {
-        self.weight += food as f32;
-    }
-
-    pub fn aging(&mut self) {
-        self.age += 1;
-    }
-}
-
-#[derive(Debug)]
-pub struct Herbivore {
-    pub animal: Animal,
 }
 
 impl Herbivore {
@@ -56,17 +41,21 @@ impl Herbivore {
         log_normal.sample(rng)
     }
 
+    pub fn gain_weight(&mut self, food: u32) {
+        self.weight += food as f32;
+    }
+
     pub fn aging(&mut self) {
-        self.animal.aging();
+        self.age += 1;
     }
 
     pub fn lose_weight_year(&mut self) {
-        self.animal.weight -= Herbivore::ETA * self.animal.weight
+        self.weight -= Herbivore::ETA * self.weight
     }
 
     pub fn lose_weight_birth(&mut self, baby_weight: f32) -> bool {
-        if self.animal.weight > Herbivore::XI * baby_weight {
-            self.animal.weight -= Herbivore::XI * baby_weight;
+        if self.weight > Herbivore::XI * baby_weight {
+            self.weight -= Herbivore::XI * baby_weight;
             self.calculate_fitness();
             true
         } else {
@@ -75,37 +64,37 @@ impl Herbivore {
     }
 
     pub fn calculate_fitness(&mut self) {
-        if self.animal.weight <= 0.0 {
-            self.animal.fitness = Some(0.0f32);
+        if self.weight <= 0.0 {
+            self.fitness = Some(0.0f32);
         } else {
             let q_pos = (1.0
-                + f32::exp(Herbivore::PHI_AGE * (self.animal.age as f32 - Herbivore::A_HALF)))
+                + f32::exp(Herbivore::PHI_AGE * (self.age as f32 - Herbivore::A_HALF)))
             .powf(-1.0);
 
             let q_neg = (1.0
-                + f32::exp(-Herbivore::PHI_WEIGHT * (self.animal.weight - Herbivore::W_HALF)))
+                + f32::exp(-Herbivore::PHI_WEIGHT * (self.weight - Herbivore::W_HALF)))
             .powf(-1.0);
 
-            self.animal.fitness = Some((q_pos * q_neg) as f32);
+            self.fitness = Some((q_pos * q_neg) as f32);
         }
     }
 
     pub fn fitness(&mut self) -> f32 {
-        match self.animal.fitness {
+        match self.fitness {
             None => {
                 self.calculate_fitness();
-                self.animal.fitness.unwrap()
+                self.fitness.unwrap()
             }
-            _ => self.animal.fitness.unwrap(),
+            _ => self.fitness.unwrap(),
         }
     }
 
     pub fn graze(&mut self, available_fodder: u32) -> u32 {
         if available_fodder >= Herbivore::F {
-            self.animal.gain_weight(Herbivore::F);
+            self.gain_weight(Herbivore::F);
             Herbivore::F
         } else {
-            self.animal.gain_weight(available_fodder);
+            self.gain_weight(available_fodder);
             available_fodder
         }
     }
@@ -113,7 +102,9 @@ impl Herbivore {
 
 #[derive(Debug)]
 pub struct Carnivore {
-    pub animal: Animal,
+    pub weight: f32,
+    pub age: u32,
+    pub fitness: Option<f32>,
 }
 
 impl Carnivore {
@@ -148,17 +139,21 @@ impl Carnivore {
         log_normal.sample(rng)
     }
 
+    pub fn gain_weight(&mut self, food: u32) {
+        self.weight += food as f32;
+    }
+
     pub fn aging(&mut self) {
-        self.animal.aging();
+        self.age += 1;
     }
 
     pub fn lose_weight_year(&mut self) {
-        self.animal.weight -= Carnivore::ETA * self.animal.weight
+        self.weight -= Carnivore::ETA * self.weight
     }
 
     pub fn lose_weight_birth(&mut self, baby_weight: f32) -> bool {
-        if self.animal.weight > Carnivore::XI * baby_weight {
-            self.animal.weight -= Carnivore::XI * baby_weight;
+        if self.weight > Carnivore::XI * baby_weight {
+            self.weight -= Carnivore::XI * baby_weight;
             self.calculate_fitness();
             true
         } else {
@@ -167,28 +162,28 @@ impl Carnivore {
     }
 
     pub fn calculate_fitness(&mut self) {
-        if self.animal.weight <= 0.0 {
-            self.animal.fitness = Some(0.0f32);
+        if self.weight <= 0.0 {
+            self.fitness = Some(0.0f32);
         } else {
             let q_pos = (1.0
-                + f32::exp(Carnivore::PHI_AGE * (self.animal.age as f32 - Carnivore::A_HALF)))
+                + f32::exp(Carnivore::PHI_AGE * (self.age as f32 - Carnivore::A_HALF)))
             .powf(-1.0);
 
             let q_neg = (1.0
-                + f32::exp(-Carnivore::PHI_WEIGHT * (self.animal.weight - Carnivore::W_HALF)))
+                + f32::exp(-Carnivore::PHI_WEIGHT * (self.weight - Carnivore::W_HALF)))
             .powf(-1.0);
 
-            self.animal.fitness = Some((q_pos * q_neg) as f32);
+            self.fitness = Some((q_pos * q_neg) as f32);
         }
     }
 
     pub fn fitness(&mut self) -> f32 {
-        match self.animal.fitness {
+        match self.fitness {
             None => {
                 self.calculate_fitness();
-                self.animal.fitness.unwrap()
+                self.fitness.unwrap()
             }
-            _ => self.animal.fitness.unwrap(),
+            _ => self.fitness.unwrap(),
         }
     }
 
@@ -215,13 +210,13 @@ impl Carnivore {
                 removing.push(idx);
 
                 let rest = Carnivore::F - eaten;
-                let herbivore_weight: u32 = herbivore.animal.weight as u32;
+                let herbivore_weight: u32 = herbivore.weight as u32;
 
                 if herbivore_weight < rest {
                     eaten += herbivore_weight;
-                    self.animal.gain_weight(herbivore_weight);
+                    self.gain_weight(herbivore_weight);
                 } else {
-                    self.animal.gain_weight(rest);
+                    self.gain_weight(rest);
                     break;
                 }
             }
