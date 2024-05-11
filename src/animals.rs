@@ -7,11 +7,11 @@ enum Species {
     Carnivore(Carnivore),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Herbivore {
     pub weight: f32,
     pub age: u32,
-    pub fitness: Option<f32>,
+    pub fitness: f32,
 }
 
 impl Herbivore {
@@ -28,7 +28,7 @@ impl Herbivore {
     pub const ZETA: f32 = 0.22;
     pub const XI: f32 = 0.42;
     pub const OMEGA: f32 = 0.4;
-    pub const F: u32 = 20;
+    pub const F: u16 = 20;
     pub const DELTA_PHI_MAX: u8 = 10;
 
     pub const STRIDE: u8 = 1;
@@ -48,7 +48,7 @@ impl Herbivore {
         log_normal.sample(rng)
     }
 
-    pub fn gain_weight(&mut self, food: u32) {
+    pub fn gain_weight(&mut self, food: u16) {
         self.weight += food as f32;
     }
 
@@ -72,7 +72,7 @@ impl Herbivore {
 
     pub fn calculate_fitness(&mut self) {
         if self.weight <= 0.0 {
-            self.fitness = Some(0.0f32);
+            self.fitness = 0.0;
         } else {
             let q_pos = (1.0
                 + f32::exp(Herbivore::PHI_AGE * (self.age as f32 - Herbivore::A_HALF)))
@@ -82,21 +82,11 @@ impl Herbivore {
                 + f32::exp(-Herbivore::PHI_WEIGHT * (self.weight - Herbivore::W_HALF)))
             .powf(-1.0);
 
-            self.fitness = Some((q_pos * q_neg) as f32);
+            self.fitness = q_pos * q_neg;
         }
     }
 
-    pub fn fitness(&mut self) -> f32 {
-        match self.fitness {
-            None => {
-                self.calculate_fitness();
-                self.fitness.unwrap()
-            }
-            _ => self.fitness.unwrap(),
-        }
-    }
-
-    pub fn graze(&mut self, available_fodder: u32) -> u32 {
+    pub fn graze(&mut self, available_fodder: u16) -> u16 {
         if available_fodder >= Herbivore::F {
             self.gain_weight(Herbivore::F);
             Herbivore::F
@@ -111,7 +101,7 @@ impl Herbivore {
 pub struct Carnivore {
     pub weight: f32,
     pub age: u32,
-    pub fitness: Option<f32>,
+    pub fitness: f32,
 }
 
 impl Carnivore {
@@ -128,7 +118,7 @@ impl Carnivore {
     pub const ZETA: f32 = 3.5;
     pub const XI: f32 = 1.1;
     pub const OMEGA: f32 = 0.3;
-    pub const F: u32 = 70;
+    pub const F: u16 = 70;
     pub const DELTA_PHI_MAX: u8 = 10;
 
     pub const STRIDE: u8 = 3;
@@ -148,7 +138,7 @@ impl Carnivore {
         log_normal.sample(rng)
     }
 
-    pub fn gain_weight(&mut self, food: u32) {
+    pub fn gain_weight(&mut self, food: u16) {
         self.weight += food as f32;
     }
 
@@ -172,7 +162,7 @@ impl Carnivore {
 
     pub fn calculate_fitness(&mut self) {
         if self.weight <= 0.0 {
-            self.fitness = Some(0.0f32);
+            self.fitness = 0.0f32;
         } else {
             let q_pos = (1.0
                 + f32::exp(Carnivore::PHI_AGE * (self.age as f32 - Carnivore::A_HALF)))
@@ -182,28 +172,18 @@ impl Carnivore {
                 + f32::exp(-Carnivore::PHI_WEIGHT * (self.weight - Carnivore::W_HALF)))
             .powf(-1.0);
 
-            self.fitness = Some((q_pos * q_neg) as f32);
+            self.fitness = q_pos * q_neg;
         }
     }
 
-    pub fn fitness(&mut self) -> f32 {
-        match self.fitness {
-            None => {
-                self.calculate_fitness();
-                self.fitness.unwrap()
-            }
-            _ => self.fitness.unwrap(),
-        }
-    }
-
-    pub fn predation(&mut self, rng: &mut ThreadRng, herbivores: &mut Vec<Herbivore>) -> u32 {
-        let mut eaten: u32 = 0;
+    pub fn predation(&mut self, rng: &mut ThreadRng, herbivores: &mut Vec<Herbivore>) -> u16 {
+        let mut eaten: u16 = 0;
         let delta_phi_max: f32 = Carnivore::DELTA_PHI_MAX as f32;
         let mut removing: Vec<usize> = Vec::new();
 
         for (idx, herbivore) in herbivores.iter_mut().enumerate() {
-            let herbivore_fitness = herbivore.fitness();
-            let carnivore_fitness = self.fitness();
+            let herbivore_fitness = herbivore.fitness;
+            let carnivore_fitness = self.fitness;
             let difference = carnivore_fitness - herbivore_fitness;
 
             let prob: f32;
@@ -219,7 +199,7 @@ impl Carnivore {
                 removing.push(idx);
 
                 let rest = Carnivore::F - eaten;
-                let herbivore_weight: u32 = herbivore.weight as u32;
+                let herbivore_weight: u16 = herbivore.weight as u16;
 
                 if herbivore_weight < rest {
                     eaten += herbivore_weight;

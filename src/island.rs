@@ -1,4 +1,6 @@
+use ordered_float::OrderedFloat;
 use rand::prelude::ThreadRng;
+use rand::seq::SliceRandom;
 use rand::Rng;
 use super::animals::*;
 
@@ -31,9 +33,9 @@ impl Island<'_> {
         }
 
         let mut cells: Vec<Vec<Cell>> = Vec::new();
-        for (i, row) in geography.iter().enumerate() {
+        for row in geography.iter() {
             let mut _cells: Vec<Cell> = Vec::new();
-            for (j, landscape) in row.iter().enumerate() {
+            for landscape in row.iter() {
                 let fodder = match landscape {
                     'H' => 300u16,
                     'L' => 800u16,
@@ -41,7 +43,7 @@ impl Island<'_> {
                     'W' => 0u16,
                     _ => panic!("Unknown landscape type!")
                 };
-                let cell = Cell {
+                let mut cell = Cell {
                     fodder, f_max: fodder,
                     animals: (
                         Vec::<Herbivore>::new(), Vec::<Carnivore>::new()
@@ -61,7 +63,7 @@ impl Island<'_> {
         }
     }
 
-    // Input: vec![((x, y, 'X', Y)]
+    // Input: vec![(x, y, 'X', Y)]
     // Where x, y is the coordinate
     // and 'X', Y the species and amount; 'h': Herbivore, 'c': Carnivore
     pub fn add_population(&mut self, population: Vec<(usize, usize, char, u16)>) {
@@ -77,19 +79,21 @@ impl Island<'_> {
             for _ in 0..item.3 {
                 match item.2 {
                     'h' => {
-                        let herbivore = Herbivore {
+                        let mut herbivore = Herbivore {
                             weight: Herbivore::birthweight(self.rng),
                             age: 0,
-                            fitness: None
+                            fitness: 0.0
                         };
+                        herbivore.calculate_fitness();
                         cell.animals.0.push(herbivore);
                     },
                     'c' => {
-                        let carnivore = Carnivore {
+                        let mut carnivore = Carnivore {
                             weight: Carnivore::birthweight(self.rng),
                             age: 0,
-                            fitness: None
+                            fitness: 0.0
                         };
+                        carnivore.calculate_fitness();
                         cell.animals.1.push(carnivore);
                     },
                     _ => panic!(
@@ -111,20 +115,22 @@ impl Island<'_> {
                 if herbivore.weight < Herbivore::PROCREATE {
                     continue
                 }
-                if self.rng.gen::<f32>() >= herbivore.fitness.unwrap() * p_herb {
+                if self.rng.gen::<f32>() >= herbivore.fitness * p_herb {
                     continue
                 }
                 let babyweight = Herbivore::birthweight(self.rng);
                 if !herbivore.lose_weight_birth(babyweight) {
                     continue
                 }
-                b_herb.push(
-                    Herbivore {
+                b_herb.push({
+                    let mut baby = Herbivore {
                         weight: babyweight,
                         age: 0,
-                        fitness: None
-                    }
-                )
+                        fitness: 0.0
+                    };
+                    baby.calculate_fitness();
+                    baby
+                })
             }
             self.cells[*x][*y].animals.0.append(&mut b_herb);
 
@@ -135,53 +141,115 @@ impl Island<'_> {
                 if carnivore.weight < Carnivore::PROCREATE {
                     continue
                 }
-                if self.rng.gen::<f32>() >= carnivore.fitness.unwrap() * p_carn {
+                if self.rng.gen::<f32>() >= carnivore.fitness * p_carn {
                     continue
                 }
                 let babyweight = Carnivore::birthweight(self.rng);
                 if !carnivore.lose_weight_birth(babyweight) {
                     continue
                 }
-                b_carn.push(
-                    Carnivore {
+                b_carn.push({
+                    let mut baby = Carnivore {
                         weight: babyweight,
                         age: 0,
-                        fitness: None
-                    }
-                )
+                        fitness: 0.0
+                    };
+                    baby.calculate_fitness();
+                    baby
+                })
             }
             self.cells[*x][*y].animals.1.append(&mut b_carn);
         }
     }
 
-    // fn feed(&mut self) {
-    //
-    // }
-    //
+    fn feed(&mut self) {
+        for (x, y) in self.inhabited.iter() {
+            let mut cell = &mut self.cells[*x][*y];
+
+            // Herbivores:
+            cell.grow_fodder();
+            cell.animals.0.sort_by_key(|herbivore| {
+                OrderedFloat(herbivore.fitness)
+            });
+            for herbivore in cell.animals.0.iter_mut().rev() {
+                cell.fodder -= herbivore.graze(cell.fodder);
+            }
+
+            // Carnivores:
+            cell.animals.1.shuffle(self.rng);
+            for carnivore in cell.animals.1.iter_mut() {
+                carnivore.predation(self.rng, &mut cell.animals.0);
+            }
+        }
+    }
+
     // fn migrate(&mut self) {
     //
     // }
-    //
-    // fn update_inhabitet(&mut self) {
-    //
-    // }
-    //
-    // fn aging(&mut self) {
-    //
-    // }
-    //
-    // fn weight_loss(&mut self) {
-    //
-    // }
-    //
-    // fn death(&mut self) {
-    //
-    // }
-    //
-    // pub fn yearly_cycle(&mut self) {
-    //
-    // }
-    //
+
+    fn update_inhabitet(&mut self) {
+        self.inhabited.clear();
+        for (i, row) in self.cells.iter_mut().enumerate() {
+            for (j, cell) in row.iter_mut().enumerate() {
+                if cell.animals.0.len() > 0 || cell.animals.1.len() > 0 {
+                    self.inhabited.push((i, j));
+                }
+            }
+        }
+    }
+
+    fn aging(&mut self) {
+        for (x, y) in self.inhabited.iter() {
+            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
+                herbivore.aging();
+            }
+            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
+                carnivore.aging();
+            }
+        }
+    }
+
+    fn weight_loss(&mut self) {
+        for (x, y) in self.inhabited.iter() {
+            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
+                herbivore.lose_weight_year();
+            }
+            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
+                carnivore.lose_weight_year();
+            }
+        }
+    }
+
+    fn death(&mut self) {
+        for (x, y) in self.inhabited.iter() {
+
+            for herbivore in &mut self.cells[*x][*y].animals.0 {
+                herbivore.calculate_fitness();
+            }
+            self.cells[*x][*y].animals.0.retain(|herbivore| {
+                herbivore.weight > 0.0f32 && self.rng.gen::<f32>() >= Herbivore::OMEGA * (1.0f32 -
+                    &herbivore.fitness)
+            });
+
+            for carnivore in &mut self.cells[*x][*y].animals.1 {
+                carnivore.calculate_fitness();
+            }
+            self.cells[*x][*y].animals.1.retain(|carnivore| {
+                carnivore.weight > 0.0f32 && self.rng.gen::<f32>() >= Herbivore::OMEGA * (1.0f32 -
+                    &carnivore.fitness)
+            });
+        }
+    }
+
+    pub fn yearly_cycle(&mut self) {
+        self.procreate();
+        self.feed();
+        // self.migrate();
+        self.aging();
+        self.weight_loss();
+        self.death();
+    }
+
     // pub fn animals(&mut self) {
     //
     // }
