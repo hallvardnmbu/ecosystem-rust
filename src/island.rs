@@ -1,60 +1,68 @@
+use std::collections::HashMap;
 use ordered_float::OrderedFloat;
 use rand::prelude::ThreadRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
+use crate::animals::Species::{Carnivore, Herbivore};
 use super::animals::*;
+
+pub const ALPHA: f32 = 0.1;
+pub const V_MAX: u16 = 800;
 
 pub struct Island<'a> {
     pub year: u16,
-    pub geography: Vec<Vec<char>>,
+    pub geography: Vec<&'a [u8]>,
 
-    pub cells: Vec<Vec<Cell>>,
+    pub cells: HashMap<(usize, usize), Cell>,
     pub inhabited: Vec<(usize, usize)>,
 
-    // 'a is a lifetime, meaning that rng lives as long as Island.
     pub rng: &'a mut ThreadRng,
-
-    // geography : Contains the terrain types at each index-pair.
-    // cells     : Contains the actual animals of each cell.
-    // inhabited : Contains indices of inhabited cells.
 }
 
 impl Island<'_> {
-    pub fn new(geography: Vec<Vec<char>>, rng: &mut ThreadRng) -> Island {
-        for row in geography.iter() {
-            assert_eq!(*row.first().unwrap(), 'W', "Edges must be 'W' (water)!");
-            assert_eq!(*row.last().unwrap(), 'W', "Edges must be 'W' (water)!");
+    pub fn new<'a>(geography: Vec<&'a str>, rng: &'a mut ThreadRng) -> Island<'a> {
+
+        // Change `geography` into vector of bytes, and check that edges are 'W'.
+        let geography: Vec<&[u8]> = geography
+            .iter()
+            .map(|row| {
+                let row = row.as_bytes();
+                assert_eq!(*row.first().unwrap(), 'W' as u8, "Edges must be of 'W'");
+                assert_eq!(*row.last().unwrap(), 'W' as u8, "Edges must be of 'W'");
+                row
+            } )
+            .collect();
+        if !geography.first().unwrap().iter().all(|&b| b == 'W' as u8) {
+            panic!("Edges must be of 'W'!")
         }
-        for element in geography.first().unwrap() {
-            assert_eq!(*element, 'W', "Edges must be 'W' (water)!");
-        }
-        for element in geography.last().unwrap() {
-            assert_eq!(*element, 'W', "Edges must be 'W' (water)!");
+        if !geography.last().unwrap().iter().all(|&b| b == 'W' as u8) {
+            panic!("Edges must be of 'W'!")
         }
 
-        let mut cells: Vec<Vec<Cell>> = Vec::new();
-        for row in geography.iter() {
-            let mut _cells: Vec<Cell> = Vec::new();
-            for landscape in row.iter() {
-                let fodder = match landscape {
-                    'H' => 300u16,
-                    'L' => 800u16,
-                    'M' => 0u16,
-                    'W' => 0u16,
-                    _ => panic!("Unknown landscape type!")
-                };
-                let cell = Cell {
-                    fodder, f_max: fodder,
-                    animals: (
-                        Vec::<Herbivore>::new(), Vec::<Carnivore>::new()
-                    )
-                };
-                _cells.push(cell);
-            }
-            cells.push(_cells);
-        }
-
-        let inhabited = Vec::<(usize, usize)>::new();
+        let cells: HashMap<(usize, usize), Cell> = geography
+            .iter().enumerate()
+            .flat_map(|(i, row)| {
+                row.iter().enumerate()
+                    .map(move |(j, _el)| {
+                        let f_max = match _el {
+                            b'W' => 0u16,
+                            b'H' => 300u16,
+                            b'L' => 800u16,
+                            b'M' => 0u16,
+                            _ => panic!("Unknown terrain type!"),
+                        };
+                        ((i, j), Cell {
+                            f_max,
+                            fodder: f_max,
+                            animals: HashMap::from([
+                                (Herbivore, Vec::new()),
+                                (Carnivore, Vec::new())
+                            ])
+                        })
+                    })
+            })
+            .collect();
+        let inhabited = Vec::new();
 
         Island {
             year: 0,
@@ -63,170 +71,172 @@ impl Island<'_> {
         }
     }
 
-    // Input: vec![(x, y, 'X', Y)]
-    // Where x, y is the coordinate
-    // and 'X', Y the species and amount; 'h': Herbivore, 'c': Carnivore
-    pub fn add_population(&mut self, population: Vec<(usize, usize, char, u16)>) {
-        for item in population.iter() {
-
-            // Retrive the current cell for memory efficiency.
-            let cell = &mut self.cells[item.0][item.1];
-
-            // Create the number of specified animals and push to respective vector.
-            for _ in 0..item.3 {
-                match item.2 {
-                    'h' => {
-                        let mut herbivore = Herbivore {
-                            weight: Herbivore::birthweight(self.rng),
-                            age: 0,
-                            fitness: 0.0
-                        };
-                        herbivore.calculate_fitness();
-                        cell.animals.0.push(herbivore);
-                    },
-                    'c' => {
-                        let mut carnivore = Carnivore {
-                            weight: Carnivore::birthweight(self.rng),
-                            age: 0,
-                            fitness: 0.0
-                        };
-                        carnivore.calculate_fitness();
-                        cell.animals.1.push(carnivore);
-                    },
-                    _ => panic!(
-                        "Unknown species. \
-                        Should be 'h' or 'c' for Herbivores and Carnivores, respectively."
-                    ),
+    // Input: vec![((x, y), Species, n), ...]
+    // Where (x, y) is the coordinate
+    // and Species, n the Species and number of individuals.
+    pub fn add_population(&mut self, population: Vec<((usize, usize), Species, u16)>) {
+        for (coordinate, species, amount) in population {
+            let cell = self.cells.get_mut(&coordinate).expect("Expected Cell.");
+            for _ in 0..amount {
+                let mut animal = Animal {
+                    species: species,
+                    age: 0,
+                    weight: birthweight(species, self.rng),
+                    fitness: 0.0,
                 };
+                animal.calculate_fitness();
+                cell.animals.get_mut(&species).expect("Expected animals.").push(animal);
             }
         }
         self.update_inhabited();
     }
 
-    pub fn procreate(&mut self) {
-        for (x, y) in self.inhabited.iter() {
+    fn procreate(&mut self) {
+        let probability = HashMap::from([
+            (Herbivore, Parameters::HERBIVORE.procreate),
+            (Carnivore, Parameters::CARNIVORE.procreate),
+        ]);
 
-            // Loop through the Herbivoress of the cell:
-            let p_herb = Herbivore::GAMMA *  self.cells[*x][*y].animals.0.len() as f32;
-            let mut b_herb: Vec<Herbivore> = Vec::new();
-            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
-                if herbivore.weight < Herbivore::PROCREATE {
-                    continue
-                }
-                if self.rng.gen::<f32>() >= herbivore.fitness * p_herb {
-                    continue
-                }
-                let babyweight = Herbivore::birthweight(self.rng);
-                if !herbivore.lose_weight_birth(babyweight) {
-                    continue
-                }
-                b_herb.push({
-                    let mut baby = Herbivore {
-                        weight: babyweight,
-                        age: 0,
-                        fitness: 0.0
-                    };
-                    baby.calculate_fitness();
-                    baby
-                })
-            }
-            self.cells[*x][*y].animals.0.append(&mut b_herb);
+        for coordinate in self.inhabited.iter() {
+            let mut babies = HashMap::from([
+                (Herbivore, Vec::new()),
+                (Carnivore, Vec::new()),
+            ]);
+            let cell = self.cells
+                .get_mut(coordinate)
+                .expect("Expected Cell.");
+            let species_keys: Vec<_> = cell.animals.keys().cloned().collect();
 
-            // Loop through the Carnivores of the cell:
-            let p_carn = Carnivore::GAMMA *  self.cells[*x][*y].animals.1.len() as f32;
-            let mut b_carn: Vec<Carnivore> = Vec::new();
-            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
-                if carnivore.weight < Carnivore::PROCREATE {
-                    continue
+            for species in species_keys {
+                let factor: f32 = match species {
+                    Herbivore => Parameters::HERBIVORE.gamma * cell.animals[&species].len() as f32,
+                    Carnivore => Parameters::CARNIVORE.gamma * cell.animals[&species].len() as f32,
+                };
+
+                for animal in cell.animals.get_mut(&species).expect("Expected animal.") {
+                    if animal.weight < probability[&species] {
+                        continue
+                    } else if self.rng.gen::<f32>() >= animal.fitness * factor {
+                        continue
+                    }
+                    let babyweight = animal.birthweight(self.rng);
+                    if !animal.lose_weight_birth(babyweight) {
+                        continue
+                    }
+                    babies.get_mut(&species).expect("Expected babies.").push({
+                        let mut baby = Animal {
+                            species: species.clone(),
+                            age: 0,
+                            weight: babyweight,
+                            fitness: 0.0
+                        };
+                        baby.calculate_fitness();
+                        baby
+                    })
                 }
-                if self.rng.gen::<f32>() >= carnivore.fitness * p_carn {
-                    continue
-                }
-                let babyweight = Carnivore::birthweight(self.rng);
-                if !carnivore.lose_weight_birth(babyweight) {
-                    continue
-                }
-                b_carn.push({
-                    let mut baby = Carnivore {
-                        weight: babyweight,
-                        age: 0,
-                        fitness: 0.0
-                    };
-                    baby.calculate_fitness();
-                    baby
-                })
             }
-            self.cells[*x][*y].animals.1.append(&mut b_carn);
+            for (species, babes) in babies.iter_mut() {
+                cell.animals
+                    .get_mut(species).expect("Expected animals")
+                    .append(babes);
+            }
         }
     }
 
     fn feed(&mut self) {
-        for (x, y) in self.inhabited.iter() {
-            let cell = &mut self.cells[*x][*y];
+        for coordinate in self.inhabited.iter() {
+            let cell = self.cells.get_mut(coordinate).expect("Expected Cell");
+            cell.grow_fodder();
 
             // Herbivores:
-            cell.grow_fodder();
-            cell.animals.0.sort_by_key(|herbivore| {
-                OrderedFloat(herbivore.fitness)
-            });
-            for herbivore in cell.animals.0.iter_mut().rev() {
+            let mut herbivores = cell.animals
+                .get_mut(&Herbivore).expect("Expected Herbivores")
+                .clone();
+            herbivores.sort_by_key(|herbivore| OrderedFloat(herbivore.fitness));
+
+            for herbivore in herbivores.iter_mut().rev() {
                 cell.fodder -= herbivore.graze(cell.fodder);
             }
 
             // Carnivores:
-            cell.animals.1.shuffle(self.rng);
-            for carnivore in cell.animals.1.iter_mut() {
-                carnivore.predation(self.rng, &mut cell.animals.0);
+            let carnivores = cell.animals
+                .get_mut(&Carnivore).expect("Expected Carnivores");
+            carnivores.shuffle(self.rng);
+            for carnivore in carnivores.iter_mut() {
+                let _ = carnivore.predation(self.rng, &mut herbivores);
             }
+
+            cell.animals.insert(Herbivore, herbivores);
         }
     }
 
     fn migrate(&mut self) {
-        let mut migrating: Vec<(usize, (usize, usize), (usize, usize))> = Vec::new();
+        let mut migrating: Vec<(usize, (usize, usize), Species)> = Vec::new();
 
-        for (x, y) in self.inhabited.iter() {
-
-            // Loop through the Herbivoress of the cell:
-            for (animal_idx, herbivore) in self.cells[*x][*y].animals.0.iter().enumerate() {
-                if self.rng.gen::<f32>() > Herbivore::MU * herbivore.fitness {
-                    continue
-                }
-                let rndnr1 = self.rng.gen::<f32>();
-                let rndnr2 = self.rng.gen::<f32>();
-                let new_cell = self.migrate_herbivore(&rndnr1, &rndnr2, x, y);
-                match new_cell {
-                    (1000, 1000) => continue,
-                    _ => migrating.push(
-                        (animal_idx, (*x, *y), new_cell)
-                    ),
+        for coordinate in self.inhabited.iter() {
+            let cell = self.cells.get_mut(coordinate).expect("Expected Cell");
+            for (species, animals) in cell.animals.iter_mut() {
+                let mu = match species {
+                    Herbivore => Parameters::HERBIVORE.mu,
+                    Carnivore => Parameters::CARNIVORE.mu,
                 };
+                for (idx, animal) in animals.iter_mut().enumerate() {
+                    if self.rng.gen::<f32>() > mu * animal.fitness {
+                        continue
+                    }
+
+                    migrating.push((idx, *coordinate, *species));
+                }
             }
         }
 
+
         migrating.sort_by(|a, b| a.0.cmp(&b.0));
-        for (idx, from_cell, to_cell) in migrating.iter().rev() {
-            let animal = self.cells[from_cell.0][from_cell.1].animals.0.remove(*idx);
-            self.cells[to_cell.0][to_cell.1].animals.0.push(animal);
+        for (idx, coordinate, species) in migrating.iter().rev() {
+            let new_cell = self.new_cell(&coordinate, &species);
+            match new_cell {
+                None => continue,
+                Some(new_coordinate) => {
+                    let animal = self.cells.get_mut(&coordinate).unwrap().animals.get_mut(&species).unwrap().remove(*idx);
+                    self.cells.get_mut(&new_coordinate).unwrap().animals.get_mut(&species).unwrap().push(animal);
+                }
+            }
         }
+        self.update_inhabited();
+        // migrating.sort_by(|a, b| a.0.cmp(&b.0));
+        // println!("{:?}", migrating);
+        // // for (idx, from_cell, to_cell) in migrating.iter().rev() {
+        // //     let animal = self.cells[from_cell.0][from_cell.1].animals.0.remove(*idx);
+        // //     self.cells[to_cell.0][to_cell.1].animals.0.push(animal);
+        // // }
     }
 
-    fn migrate_herbivore(&self, randnr1: &f32, randnr2: &f32, x: &usize, y: &usize) -> (usize, usize) {
+    fn new_cell(&mut self, (x, y): &(usize, usize), species: &Species) -> Option<(usize, usize)> {
+
+        let (stride, hunger) = match species {
+            Herbivore => (Parameters::HERBIVORE.stride, Parameters::HERBIVORE.hunger),
+            Carnivore => (Parameters::CARNIVORE.stride, Parameters::CARNIVORE.hunger),
+        };
+
         let mut possibilities: Vec<(usize, usize)> = Vec::new();
-        for i in x - Herbivore::STRIDE..x + Herbivore::STRIDE + 1 {
-            for j in y - Herbivore::STRIDE..y + Herbivore::STRIDE + 1 {
+
+        for i in x.checked_sub(stride).unwrap_or(0)..x.checked_add(stride).unwrap_or(0)+1 {
+            for j in y.checked_sub(stride).unwrap_or(0)..y.checked_add(stride).unwrap_or(0)+1 {
                 if (i, j) == (*x, *y) {
                     continue
                 }
                 if i <= 0
-                    || i >= self.geography[0].len() as u8 as usize
+                    || i >= self.geography.len() as u8 as usize
                     || j <= 0
-                    || j >= self.geography.len() as u8 as usize {
+                    || j >= self.geography[0].len() as u8 as usize {
                     continue
                 }
-                if self.geography[i][j] == 'W' {
+                if self.geography[i][j].eq(&b'W') {
                     continue
                 }
-                if (i - x).pow(2) + (j - y).pow(2) > Herbivore::STRIDE.pow(2) {
+                let diff_i = i.checked_sub(*x).unwrap_or(0);
+                let diff_j = j.checked_sub(*y).unwrap_or(0);
+                if diff_i.pow(2) + diff_j.pow(2) > stride.pow(2) {
                     continue
                 }
                 possibilities.push((i, j));
@@ -234,23 +244,35 @@ impl Island<'_> {
         }
 
         let mut propensity: Vec<f32> = Vec::new();
-        for (i, j) in possibilities.iter() {
-            let cell: &Cell = &self.cells[*i][*j];
-            let fodder = cell.fodder as f32;
-            let population = cell.animals.0.len() as u16;
+        for idx in possibilities.iter() {
+            let fodder = match species {
+                Herbivore => {
+                    self.cells[idx].fodder as f32
+                },
+                Carnivore => {
+                    let mut fodder = 0.0f32;
+                    for animal in self.cells
+                        .get_mut(idx).expect("Expected Cell")
+                        .animals.get_mut(&Herbivore).expect("Expected Herbivore") {
+                        fodder += animal.weight;
+                    }
+                    fodder
+                },
+            };
+            let population = self.cells[idx].animals[species].len() as u16;
             let abundance = fodder /
-                ((population + 1) * Herbivore::F)
+                ((population + 1) * hunger)
                     .max(population + 1)
-                    .max(Herbivore::F)
+                    .max(hunger)
                     .max(1) as f32;
             propensity.push(abundance);
         }
         if propensity.len() == 0 {
-            return (1000, 1000)
+            return None
         }
 
         let propensity_sum: f32 = propensity.iter().sum();
-        let new_pos_idx = ((randnr1 * propensity.len() as f32).ceil() - 1.0) as usize;
+        let new_pos_idx = ((self.rng.gen::<f32>() * propensity.len() as f32).ceil() - 1.0) as usize;
 
         let probability: f32;
         if propensity_sum == 0.0f32 {
@@ -259,63 +281,59 @@ impl Island<'_> {
             probability = propensity[new_pos_idx] / propensity_sum;
         }
 
-        if *randnr2 < probability {
-            return possibilities[new_pos_idx]
+        if self.rng.gen::<f32>() < probability {
+            return Some(possibilities[new_pos_idx])
         };
-        return (1000, 1000)
+        return None
     }
 
     fn update_inhabited(&mut self) {
         self.inhabited.clear();
-        for (i, row) in self.cells.iter_mut().enumerate() {
-            for (j, cell) in row.iter_mut().enumerate() {
-                if cell.animals.0.len() > 0 || cell.animals.1.len() > 0 {
-                    self.inhabited.push((i, j));
-                }
+        for (coordinates, cell) in self.cells.iter_mut() {
+            if cell.animals[&Herbivore].len() > 0
+                || cell.animals[&Carnivore].len() > 0 {
+                self.inhabited.push(*coordinates);
             }
         }
     }
 
     fn ageing(&mut self) {
-        for (x, y) in self.inhabited.iter() {
-            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
-                herbivore.aging();
-            }
-            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
-                carnivore.aging();
+        for coordinate in self.inhabited.iter() {
+            for animals in self.cells
+                .get_mut(coordinate).expect("Expected Cell")
+                .animals.values_mut() {
+                for animal in animals {
+                    animal.aging();
+                }
             }
         }
     }
 
     fn weight_loss(&mut self) {
-        for (x, y) in self.inhabited.iter() {
-            for herbivore in self.cells[*x][*y].animals.0.iter_mut() {
-                herbivore.lose_weight_year();
-            }
-            for carnivore in self.cells[*x][*y].animals.1.iter_mut() {
-                carnivore.lose_weight_year();
+        for coordinate in self.inhabited.iter() {
+            for animals in self.cells.get_mut(coordinate).expect("Expected Cell").animals.values_mut() {
+                for animal in animals {
+                    animal.lose_weight_year();
+                }
             }
         }
     }
 
     fn death(&mut self) {
-        for (x, y) in self.inhabited.iter() {
+        for coordinate in self.inhabited.iter() {
+            // let cell = &mut self.cells.get_mut(coordinate).expect("Expected Cell");
 
-            for herbivore in &mut self.cells[*x][*y].animals.0 {
-                herbivore.calculate_fitness();
+            for (species, animals) in self.cells.get_mut(coordinate).expect("Expected Cell").animals.iter_mut() {
+                animals.retain(|animal| {
+                    let mut animal = animal.clone();
+                    animal.calculate_fitness();
+                    let omega = match species {
+                        Herbivore => Parameters::HERBIVORE.omega,
+                        Carnivore => Parameters::CARNIVORE.omega,
+                    };
+                    !(animal.weight <= 0.0f32 && self.rng.gen::<f32>() >= omega * (1.0f32 - animal.fitness))
+                });
             }
-            self.cells[*x][*y].animals.0.retain(|herbivore| {
-                herbivore.weight > 0.0f32 && self.rng.gen::<f32>() >= Herbivore::OMEGA * (1.0f32 -
-                    &herbivore.fitness)
-            });
-
-            for carnivore in &mut self.cells[*x][*y].animals.1 {
-                carnivore.calculate_fitness();
-            }
-            self.cells[*x][*y].animals.1.retain(|carnivore| {
-                carnivore.weight > 0.0f32 && self.rng.gen::<f32>() >= Herbivore::OMEGA * (1.0f32 -
-                    &carnivore.fitness)
-            });
         }
     }
 
@@ -335,21 +353,19 @@ impl Island<'_> {
     // }
 }
 
+// #[derive(Debug, Clone)]
 #[derive(Debug)]
 pub struct Cell {
     pub f_max: u16,
     pub fodder: u16,
-    pub animals:  (
-        Vec<Herbivore>,
-        Vec<Carnivore>
-    ),
+    pub animals: HashMap<Species, Vec<Animal>>,
 }
 
 impl Cell {
     pub const ALPHA: f32 = 0.1;
     pub const V_MAX: u16 = 800;
 
-    pub fn grow_fodder(&mut self) {
+    fn grow_fodder(&mut self) {
         if self.f_max == 0 {
             return
         }

@@ -67,11 +67,46 @@ impl Parameters {
     };
 }
 
+#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
 pub enum Species {
     Herbivore,
     Carnivore
 }
 
+pub fn birthweight(species: Species, rng: &mut ThreadRng) -> f32 {
+    let (mean, std): (f32, f32) = match species {
+        Species::Herbivore => {
+            let mean: f32 = f32::ln(
+                Parameters::HERBIVORE.w_birth.powf(2.0) /
+                    (Parameters::HERBIVORE.w_birth.powf(2.0)
+                        + Parameters::HERBIVORE.sigma_birth.powf(2.0)
+                    ).sqrt()
+            );
+            let std: f32 = f32::ln(1.0f32 +
+                (Parameters::HERBIVORE.sigma_birth.powf(2.0)
+                    / Parameters::HERBIVORE.w_birth.powf(2.0))
+            ).sqrt();
+            (mean, std)
+        },
+        Species::Carnivore => {
+            let mean: f32 = f32::ln(
+                Parameters::CARNIVORE.w_birth.powf(2.0) /
+                    (Parameters::CARNIVORE.w_birth.powf(2.0)
+                        + Parameters::CARNIVORE.sigma_birth.powf(2.0)
+                    ).sqrt()
+            );
+            let std: f32 = f32::ln(1.0f32 +
+                (Parameters::CARNIVORE.sigma_birth.powf(2.0)
+                    / Parameters::CARNIVORE.w_birth.powf(2.0))
+            ).sqrt();
+            (mean, std)
+        },
+    };
+    let log_normal = LogNormal::new(mean, std).unwrap();
+    log_normal.sample(rng)
+}
+
+#[derive(Debug, Clone)]
 pub struct Animal {
     pub species: Species,
     pub weight: f32,
