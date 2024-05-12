@@ -363,18 +363,18 @@ pub struct Cell {
 
 impl Cell {
     pub const ALPHA: f32 = 0.1;
-    pub const V_MAX: u16 = 800;
+    pub const V_MAX: f32 = 800.0;
 
-    fn grow_fodder(&mut self) {
+    // Set to `pub` for testing purposes.
+    pub fn grow_fodder(&mut self) {
         if self.f_max == 0 {
             return
         }
-        self.fodder = self.fodder.min(
-            self.fodder + Cell::V_MAX * (
-                1.0
-                    - Cell::ALPHA
+        let growth = Cell::V_MAX * (
+                1.0 - Cell::ALPHA
                     * (self.f_max - self.fodder) as f32
                     / self.f_max as f32
-            ) as u16);
+            );
+        self.fodder = u16::min(self.f_max, self.fodder + growth as u16);
     }
 }
