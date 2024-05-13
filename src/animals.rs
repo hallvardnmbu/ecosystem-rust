@@ -55,7 +55,7 @@ impl Parameters {
         w_half: 4.0,
         phi_weight: 0.28,
         gamma: 0.8,
-        zeta: 3.0,
+        zeta: 3.5,
         xi: 1.1,
         omega: 0.3,
         hunger: 70,
@@ -63,7 +63,7 @@ impl Parameters {
 
         stride: 3,
 
-        procreate: 3.0 * (6.0 + 1.0),
+        procreate: 3.5 * (6.0 + 1.0),
     };
 }
 
@@ -74,34 +74,18 @@ pub enum Species {
 }
 
 pub fn birthweight(species: Species, rng: &mut ThreadRng) -> f32 {
-    let (mean, std): (f32, f32) = match species {
-        Species::Herbivore => {
-            let mean: f32 = f32::ln(
-                Parameters::HERBIVORE.w_birth.powf(2.0) /
-                    (Parameters::HERBIVORE.w_birth.powf(2.0)
-                        + Parameters::HERBIVORE.sigma_birth.powf(2.0)
-                    ).sqrt()
-            );
-            let std: f32 = f32::ln(1.0f32 +
-                (Parameters::HERBIVORE.sigma_birth.powf(2.0)
-                    / Parameters::HERBIVORE.w_birth.powf(2.0))
-            ).sqrt();
-            (mean, std)
-        },
-        Species::Carnivore => {
-            let mean: f32 = f32::ln(
-                Parameters::CARNIVORE.w_birth.powf(2.0) /
-                    (Parameters::CARNIVORE.w_birth.powf(2.0)
-                        + Parameters::CARNIVORE.sigma_birth.powf(2.0)
-                    ).sqrt()
-            );
-            let std: f32 = f32::ln(1.0f32 +
-                (Parameters::CARNIVORE.sigma_birth.powf(2.0)
-                    / Parameters::CARNIVORE.w_birth.powf(2.0))
-            ).sqrt();
-            (mean, std)
-        },
+    let (w_birth, sigma_birth) = match species {
+        Species::Herbivore => (Parameters::HERBIVORE.w_birth, Parameters::HERBIVORE.sigma_birth),
+        Species::Carnivore => (Parameters::CARNIVORE.w_birth, Parameters::CARNIVORE.sigma_birth)
     };
+
+    let mean: f32 = f32::ln(
+        w_birth.powf(2.0) / f32::sqrt(w_birth.powf(2.0) + sigma_birth.powf(2.0))
+    );
+    let std: f32 = f32::sqrt(f32::ln(
+        1.0f32 + (sigma_birth.powf(2.0) / w_birth.powf(2.0))
+    ));
+
     let log_normal = LogNormal::new(mean, std).unwrap();
     log_normal.sample(rng)
 }
@@ -116,34 +100,19 @@ pub struct Animal {
 
 impl Animal {
     pub fn birthweight(&self, rng: &mut ThreadRng) -> f32 {
-        let (mean, std): (f32, f32) = match &self.species {
-            Species::Herbivore => {
-                let mean: f32 = f32::ln(
-                    Parameters::HERBIVORE.w_birth.powf(2.0) /
-                        (Parameters::HERBIVORE.w_birth.powf(2.0)
-                            + Parameters::HERBIVORE.sigma_birth.powf(2.0)
-                        ).sqrt()
-                );
-                let std: f32 = f32::ln(1.0f32 +
-                    (Parameters::HERBIVORE.sigma_birth.powf(2.0)
-                        / Parameters::HERBIVORE.w_birth.powf(2.0))
-                ).sqrt();
-                (mean, std)
-            },
-            Species::Carnivore => {
-                let mean: f32 = f32::ln(
-                    Parameters::CARNIVORE.w_birth.powf(2.0) /
-                        (Parameters::CARNIVORE.w_birth.powf(2.0)
-                            + Parameters::CARNIVORE.sigma_birth.powf(2.0)
-                        ).sqrt()
-                );
-                let std: f32 = f32::ln(1.0f32 +
-                    (Parameters::CARNIVORE.sigma_birth.powf(2.0)
-                        / Parameters::CARNIVORE.w_birth.powf(2.0))
-                ).sqrt();
-                (mean, std)
-            },
+        let (w_birth, sigma_birth) = match self.species {
+            Species::Herbivore => (Parameters::HERBIVORE.w_birth, Parameters::HERBIVORE.sigma_birth),
+            Species::Carnivore => (Parameters::CARNIVORE.w_birth, Parameters::CARNIVORE.sigma_birth)
         };
+
+        let mean: f32 = f32::ln(
+            w_birth.powf(2.0) / f32::sqrt(w_birth.powf(2.0) + sigma_birth.powf(2.0))
+        );
+        let std: f32 = f32::sqrt(f32::ln(
+            1.0f32 + (sigma_birth.powf(2.0) / w_birth.powf(2.0))
+        ));
+
+        // TODO: Effektivisere.
         let log_normal = LogNormal::new(mean, std).unwrap();
         log_normal.sample(rng)
     }
@@ -232,7 +201,7 @@ impl Animal {
         let mut eaten: u16 = 0;
         let mut removing: Vec<usize> = Vec::new();
 
-        for (idx, herbivore) in herbivores.iter_mut().enumerate() {
+        'herbivores: for (idx, herbivore) in herbivores.iter_mut().enumerate() {
             let herbivore_fitness = herbivore.fitness;
             let carnivore_fitness = self.fitness;
             let difference = carnivore_fitness - herbivore_fitness;
@@ -257,7 +226,7 @@ impl Animal {
                     self.gain_weight(herbivore_weight);
                 } else {
                     self.gain_weight(rest);
-                    break;
+                    break 'herbivores;  // As a fail-safe I choose to name the loop, to be sure.
                 }
             }
         }

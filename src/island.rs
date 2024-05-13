@@ -27,15 +27,15 @@ impl Island<'_> {
             .iter()
             .map(|row| {
                 let row = row.as_bytes();
-                assert_eq!(*row.first().unwrap(), 'W' as u8, "Edges must be of 'W'");
-                assert_eq!(*row.last().unwrap(), 'W' as u8, "Edges must be of 'W'");
+                assert_eq!(*row.first().unwrap(), b'W', "Edges must be of 'W'");
+                assert_eq!(*row.last().unwrap(), b'W', "Edges must be of 'W'");
                 row
             } )
             .collect();
-        if !geography.first().unwrap().iter().all(|&b| b == 'W' as u8) {
+        if !geography.first().unwrap().iter().all(|&b| b == b'W') {
             panic!("Edges must be of 'W'!")
         }
-        if !geography.last().unwrap().iter().all(|&b| b == 'W' as u8) {
+        if !geography.last().unwrap().iter().all(|&b| b == b'W') {
             panic!("Edges must be of 'W'!")
         }
 
@@ -92,7 +92,7 @@ impl Island<'_> {
     }
 
     fn procreate(&mut self) {
-        let probability = HashMap::from([
+        let procreation = HashMap::from([
             (Herbivore, Parameters::HERBIVORE.procreate),
             (Carnivore, Parameters::CARNIVORE.procreate),
         ]);
@@ -108,15 +108,15 @@ impl Island<'_> {
             let species_keys: Vec<_> = cell.animals.keys().cloned().collect();
 
             for species in species_keys {
-                let factor: f32 = match species {
-                    Herbivore => Parameters::HERBIVORE.gamma * cell.animals[&species].len() as f32,
-                    Carnivore => Parameters::CARNIVORE.gamma * cell.animals[&species].len() as f32,
+                let probability: f32 = match species {
+                    Herbivore => Parameters::HERBIVORE.gamma * cell.animals[&Herbivore].len() as f32,
+                    Carnivore => Parameters::CARNIVORE.gamma * cell.animals[&Carnivore].len() as f32,
                 };
 
                 for animal in cell.animals.get_mut(&species).expect("Expected animal.") {
-                    if animal.weight < probability[&species] {
+                    if animal.weight < procreation[&species] {
                         continue
-                    } else if self.rng.gen::<f32>() >= animal.fitness * factor {
+                    } else if self.rng.gen::<f32>() >= animal.fitness * probability {
                         continue
                     }
                     let babyweight = animal.birthweight(self.rng);
@@ -146,6 +146,9 @@ impl Island<'_> {
     fn feed(&mut self) {
         for coordinate in self.inhabited.iter() {
             let cell = self.cells.get_mut(coordinate).expect("Expected Cell");
+            if &cell.animals[&Herbivore].len() == &0 {
+                continue
+            }
             cell.grow_fodder();
 
             // Herbivores:
@@ -156,6 +159,9 @@ impl Island<'_> {
 
             for herbivore in herbivores.iter_mut().rev() {
                 cell.fodder -= herbivore.graze(cell.fodder);
+                if cell.fodder == 0 {
+                    break
+                }
             }
 
             // Carnivores:
@@ -163,10 +169,12 @@ impl Island<'_> {
                 .get_mut(&Carnivore).expect("Expected Carnivores");
             carnivores.shuffle(self.rng);
             for carnivore in carnivores.iter_mut() {
+                if herbivores.len() == 0 {
+                    break
+                }
                 let _ = carnivore.predation(self.rng, &mut herbivores);
             }
-
-            cell.animals.insert(Herbivore, herbivores);
+            let _ = cell.animals.insert(Herbivore, herbivores);
         }
     }
 
@@ -189,8 +197,6 @@ impl Island<'_> {
                 }
             }
         }
-
-
         migrating.sort_by(|a, b| a.0.cmp(&b.0));
         for (idx, coordinate, species) in migrating.iter().rev() {
             let new_cell = self.new_cell(&coordinate, &species);
@@ -208,8 +214,8 @@ impl Island<'_> {
     fn new_cell(&mut self, (x, y): &(usize, usize), species: &Species) -> Option<(usize, usize)> {
 
         let (stride, hunger) = match species {
-            Herbivore => (Parameters::HERBIVORE.stride, Parameters::HERBIVORE.hunger),
-            Carnivore => (Parameters::CARNIVORE.stride, Parameters::CARNIVORE.hunger),
+            Herbivore => (Parameters::HERBIVORE.stride, Parameters::HERBIVORE.hunger as u128),
+            Carnivore => (Parameters::CARNIVORE.stride, Parameters::CARNIVORE.hunger as u128),
         };
 
         let mut possibilities: Vec<(usize, usize)> = Vec::new();
@@ -253,7 +259,7 @@ impl Island<'_> {
                     fodder
                 },
             };
-            let population = self.cells[idx].animals[species].len() as u16;
+            let population = self.cells[idx].animals[species].len() as u128;
             let abundance = fodder /
                 ((population + 1) * hunger)
                     .max(population + 1)
@@ -297,7 +303,7 @@ impl Island<'_> {
         }
     }
 
-    fn ageing(&mut self) {
+    fn aging(&mut self) {
         for coordinate in self.inhabited.iter() {
             for animals in self.cells
                 .get_mut(coordinate).expect("Expected Cell")
@@ -322,15 +328,25 @@ impl Island<'_> {
     fn death(&mut self) {
         for coordinate in self.inhabited.iter() {
             for (species, animals) in self.cells.get_mut(coordinate).expect("Expected Cell").animals.iter_mut() {
-                animals.retain(|animal| {
-                    let mut animal = animal.clone();
+                let mut dying: Vec<usize> = Vec::new();
+
+                let omega = match species {
+                    Herbivore => Parameters::HERBIVORE.omega,
+                    Carnivore => Parameters::CARNIVORE.omega,
+                };
+                for (idx, animal) in animals.iter_mut().enumerate() {
                     animal.calculate_fitness();
-                    let omega = match species {
-                        Herbivore => Parameters::HERBIVORE.omega,
-                        Carnivore => Parameters::CARNIVORE.omega,
-                    };
-                    !(animal.weight <= 0.0f32 && self.rng.gen::<f32>() >= omega * (1.0f32 - animal.fitness))
-                });
+                    if animal.weight
+                        <= 0.0f32
+                        ||
+                        self.rng.gen::<f32>()
+                        < omega * (1.0f32 - animal.fitness) {
+                        dying.push(idx);
+                    }
+                }
+                for idx in dying.iter().rev() {
+                    animals.remove(*idx);
+                }
             }
         }
     }
@@ -339,7 +355,7 @@ impl Island<'_> {
         self.procreate();
         self.feed();
         self.migrate();
-        self.ageing();
+        self.aging();
         self.weight_loss();
         self.death();
 
