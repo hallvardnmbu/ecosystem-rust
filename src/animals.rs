@@ -16,7 +16,7 @@ pub struct Parameters {
     pub zeta: f32,
     pub xi: f32,
     pub omega: f32,
-    pub hunger: u16,
+    pub hunger: f32,
     pub delta_phi_max: f32,
     pub stride: usize,
     pub procreate: f32,
@@ -37,7 +37,7 @@ impl Parameters {
         zeta: 0.22,
         xi: 0.42,
         omega: 0.4,
-        hunger: 20,
+        hunger: 20.0,
         delta_phi_max: 10.0,
 
         stride: 1,
@@ -58,7 +58,7 @@ impl Parameters {
         zeta: 3.5,
         xi: 1.1,
         omega: 0.3,
-        hunger: 70,
+        hunger: 70.0,
         delta_phi_max: 10.0,
 
         stride: 3,
@@ -117,8 +117,8 @@ impl Animal {
         log_normal.sample(rng)
     }
 
-    pub fn gain_weight(&mut self, food: u16) {
-        self.weight += food as f32;
+    pub fn gain_weight(&mut self, food: f32) {
+        self.weight += food;
     }
 
     pub fn aging(&mut self) {
@@ -177,7 +177,7 @@ impl Animal {
         self.fitness = q_pos * q_neg;
     }
 
-    pub fn graze(&mut self, available_fodder: u16) -> u16 {
+    pub fn graze(&mut self, available_fodder: f32) -> f32 {
         match self.species {
             Species::Carnivore => panic!("Carnivores can't graze!"),
             _ => ()
@@ -192,13 +192,13 @@ impl Animal {
         }
     }
 
-    pub fn predation(&mut self, rng: &mut ThreadRng, herbivores: &mut Vec<Animal>) -> u16 {
+    pub fn predation(&mut self, rng: &mut ThreadRng, herbivores: &mut Vec<Animal>) -> f32 {
         match self.species {
             Species::Herbivore => panic!("Herbivores can't hunt!"),
             _ => ()
         }
 
-        let mut eaten: u16 = 0;
+        let mut eaten: f32 = 0.0;
         let mut removing: Vec<usize> = Vec::new();
 
         'herbivores: for (idx, herbivore) in herbivores.iter_mut().enumerate() {
@@ -219,7 +219,7 @@ impl Animal {
                 removing.push(idx);
 
                 let rest = Parameters::CARNIVORE.hunger - eaten;
-                let herbivore_weight: u16 = herbivore.weight as u16;
+                let herbivore_weight = herbivore.weight;
 
                 if herbivore_weight < rest {
                     eaten += herbivore_weight;

@@ -44,11 +44,11 @@ impl Island<'_> {
             .flat_map(|(i, row)| {
                 row.iter().enumerate()
                     .map(move |(j, _el)| {
-                        let f_max = match _el {
-                            b'W' => 0u16,
-                            b'H' => 300u16,
-                            b'L' => 800u16,
-                            b'M' => 0u16,
+                        let f_max: f32 = match _el {
+                            b'W' => 0.0,
+                            b'H' => 300.0,
+                            b'L' => 800.0,
+                            b'M' => 0.0,
                             _ => panic!("Unknown terrain type!"),
                         };
                         ((i, j), Cell {
@@ -145,7 +145,9 @@ impl Island<'_> {
 
     fn feed(&mut self) {
         for coordinate in self.inhabited.iter() {
-            let cell = self.cells.get_mut(coordinate).expect("Expected Cell");
+            let cell = self.cells
+                .get_mut(coordinate).expect("Expected Cell");
+
             if &cell.animals[&Herbivore].len() == &0 {
                 continue
             }
@@ -159,7 +161,7 @@ impl Island<'_> {
 
             for herbivore in herbivores.iter_mut().rev() {
                 cell.fodder -= herbivore.graze(cell.fodder);
-                if cell.fodder == 0 {
+                if cell.fodder == 0.0 {
                     break
                 }
             }
@@ -392,8 +394,8 @@ impl Island<'_> {
 
 #[derive(Debug)]
 pub struct Cell {
-    pub f_max: u16,
-    pub fodder: u16,
+    pub f_max: f32,
+    pub fodder: f32,
     pub animals: HashMap<Species, Vec<Animal>>,
 }
 
@@ -403,14 +405,14 @@ impl Cell {
 
     // Set to `pub` for testing purposes.
     pub fn grow_fodder(&mut self) {
-        if self.f_max == 0 {
+        if self.f_max == 0.0 || self.fodder == self.f_max {
             return
         }
         let growth = Cell::V_MAX * (
                 1.0 - Cell::ALPHA
-                    * (self.f_max - self.fodder) as f32
-                    / self.f_max as f32
+                    * (self.f_max - self.fodder)
+                    / self.f_max
             );
-        self.fodder = u16::min(self.f_max, self.fodder + growth as u16);
+        self.fodder = self.f_max.min(self.fodder + growth);
     }
 }
