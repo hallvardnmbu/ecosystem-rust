@@ -203,12 +203,6 @@ impl Island<'_> {
             }
         }
         self.update_inhabited();
-        // migrating.sort_by(|a, b| a.0.cmp(&b.0));
-        // println!("{:?}", migrating);
-        // // for (idx, from_cell, to_cell) in migrating.iter().rev() {
-        // //     let animal = self.cells[from_cell.0][from_cell.1].animals.0.remove(*idx);
-        // //     self.cells[to_cell.0][to_cell.1].animals.0.push(animal);
-        // // }
     }
 
     fn new_cell(&mut self, (x, y): &(usize, usize), species: &Species) -> Option<(usize, usize)> {
@@ -271,6 +265,12 @@ impl Island<'_> {
             return None
         }
 
+        // Only consider the four best possibilities.
+        if propensity.len() > 4 {
+            propensity.sort_by_key(|&a| OrderedFloat(a));
+            propensity.drain(4..);
+        }
+
         let propensity_sum: f32 = propensity.iter().sum();
         let new_pos_idx = ((self.rng.gen::<f32>() * propensity.len() as f32).ceil() - 1.0) as usize;
 
@@ -321,8 +321,6 @@ impl Island<'_> {
 
     fn death(&mut self) {
         for coordinate in self.inhabited.iter() {
-            // let cell = &mut self.cells.get_mut(coordinate).expect("Expected Cell");
-
             for (species, animals) in self.cells.get_mut(coordinate).expect("Expected Cell").animals.iter_mut() {
                 animals.retain(|animal| {
                     let mut animal = animal.clone();
@@ -348,12 +346,34 @@ impl Island<'_> {
         self.year += 1;
     }
 
-    // pub fn animals(&mut self) {
-    //
-    // }
+    pub fn animals(&mut self) -> (
+        u32, HashMap<Species, u32>, HashMap<(usize, usize), HashMap<Species, u32>>
+    )  {
+        let mut h: u32 = 0;
+        let mut c: u32 = 0;
+        let mut hc: HashMap<(usize, usize), HashMap<Species, u32>> = HashMap::new();
+
+        for coordinate in self.inhabited.iter() {
+            hc.insert(*coordinate, HashMap::new());
+            let _hc = hc.get_mut(coordinate).expect("Expected coordinate");
+
+            for (species, animals) in self.cells.get_mut(coordinate).expect("Expected Cell")
+                .animals.iter() {
+                let n = animals.len() as u32;
+                match species {
+                    Herbivore => { h += n; },
+                    Carnivore => { c += n; },
+                };
+                _hc.insert(*species, n + _hc.get(species).unwrap_or(&0));
+            }
+        }
+        (h + c, HashMap::from([
+            (Herbivore, h),
+            (Carnivore, c)
+        ]), hc)
+    }
 }
 
-// #[derive(Debug, Clone)]
 #[derive(Debug)]
 pub struct Cell {
     pub f_max: u16,

@@ -7,28 +7,35 @@ fn main() {
     let mut rng = rand::thread_rng();
 
     let geography: Vec<&str> = vec![
-        "WWW",
-        "WLW",
-        "WLW",
-        "WWW"
+        "WWWWW",
+        "WLLLW",
+        "WLLLW",
+        "WLLLW",
+        "WWWWW"
     ];
 
     let mut isl = island::Island::new(geography, &mut rng);
 
     isl.add_population(vec![
-        ((1, 1), Herbivore, 10),
-        ((1, 1), Carnivore, 2)
+        ((2, 2), Herbivore, 10),
+        ((2, 2), Carnivore, 2)
     ]);
 
-    println!("{:?}", isl.geography);
+    println!("Metrics: {:#?}", isl.animals());
 
-    println!("{:?}", isl.inhabited);
     isl.yearly_cycle();
-    println!("{:?}", isl.inhabited);
     isl.yearly_cycle();
-    println!("{:?}", isl.inhabited);
+    isl.yearly_cycle();
+    isl.yearly_cycle();
+    isl.yearly_cycle();
 
-    println!("{:#?}", isl.cells);
-    println!("{:#?}", isl.cells[&(1, 1)].animals);
-    println!("{:#?}", isl.cells[&(2, 1)].animals);
+    let metrics = isl.animals();
+    println!("Metrics: {:#?}", metrics);
+
+
+    let mut keys: Vec<_> = metrics.2.keys().collect();
+    keys.sort();
+    let mut inhabit: Vec<_> = isl.inhabited.iter().collect();
+    inhabit.sort();
+    assert_eq!(keys, inhabit);
 }
