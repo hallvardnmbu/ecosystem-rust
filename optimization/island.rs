@@ -91,90 +91,85 @@ impl Island<'_> {
             (Species::Herbivore, Parameters::HERBIVORE.procreate),
             (Species::Carnivore, Parameters::CARNIVORE.procreate),
         ]);
-        let species_keys = Vec::from([Species::Herbivore, Species::Carnivore]);
 
-        for coordinate in self.inhabited.iter() {
-            let mut babies = HashMap::from([
-                (Species::Herbivore, Vec::new()),
-                (Species::Carnivore, Vec::new()),
-            ]);
-            let cell = self.cells
-                .get_mut(coordinate)
-                .expect("Expected Cell.");
-
-            for species in species_keys.iter() {
-                let probability: f32 = match species {
-                    Species::Herbivore => Parameters::HERBIVORE.gamma * cell.animals[species].len() as f32,
-                    Species::Carnivore => Parameters::CARNIVORE.gamma * cell.animals[species].len() as f32,
-                };
-
-                for animal in cell.animals.get_mut(species).expect("Expected animals.") {
-                    if animal.weight < procreation[species] {
-                        continue
-                    }
-                    if self.rng.gen::<f32>() >= animal.fitness * probability {
-                        continue
-                    }
-
-                    let babyweight = birthweight(*species, self.rng);
-                    if !animal.lose_weight_birth(babyweight) {
-                        continue
-                    }
-                    babies.get_mut(species).expect("Expected babies.").push({
-                        let mut baby = Animal {
-                            species: species.clone(),
-                            age: 0,
-                            weight: babyweight,
-                            fitness: 0.0
+        self.inhabited.iter()
+            .for_each(|coordinate| {
+                self.cells.get_mut(coordinate).expect("Expected Cell")
+                    .animals.iter_mut()
+                    .for_each(|(species, animals)| {
+                        let probability: f32 = match species {
+                            Species::Herbivore => Parameters::HERBIVORE.gamma * animals.len() as f32,
+                            Species::Carnivore => Parameters::CARNIVORE.gamma * animals.len() as f32,
                         };
-                        baby.calculate_fitness();
-                        baby
-                    })
-                }
-            }
-            for (species, babes) in babies.iter_mut() {
-                cell.animals
-                    .get_mut(species).expect("Expected animals")
-                    .append(babes);
-            }
-        }
+                        let mut babies = animals.iter_mut()
+                            .filter_map(|animal| {
+                                if animal.weight < procreation[species] {
+                                    return None
+                                }
+                                if self.rng.gen::<f32>() >= animal.fitness * probability {
+                                    return None
+                                }
+
+                                let babyweight = birthweight(*species, self.rng);
+                                if !animal.lose_weight_birth(babyweight) {
+                                    return None
+                                }
+
+                                let mut baby = Animal {
+                                    species: species.clone(),
+                                    age: 0,
+                                    weight: babyweight,
+                                    fitness: 0.0
+                                };
+                                baby.calculate_fitness();
+                                return Some(baby)
+                            }).collect();
+                        animals.append(&mut babies);
+                    });
+            });
     }
 
     fn feed(&mut self) {
-        for coordinate in self.inhabited.iter() {
-            let cell = self.cells
-                .get_mut(coordinate).expect("Expected Cell");
+        self.inhabited.iter()
+            .for_each(|coordinate| {
+                let cell = self.cells
+                    .get_mut(coordinate).expect("Expected Cell");
 
-            if &cell.animals[&Species::Herbivore].len() == &0 {
-                continue
-            }
-            cell.grow_fodder();
+                cell.grow_fodder();
+                if &cell.animals[&Species::Herbivore].len() > &0 {
 
-            // Herbivores:
-            let mut herbivores = cell.animals
-                .get_mut(&Species::Herbivore).expect("Expected Herbivores")
-                .clone();
-            herbivores.sort_by_key(|herbivore| OrderedFloat(herbivore.fitness));
+                    // Herbivores:
+                    cell.animals
+                        .get_mut(&Species::Herbivore).expect("Expected Herbivores")
+                        .sort_unstable_by_key(|herbivore| OrderedFloat(herbivore.fitness));
 
-            for herbivore in herbivores.iter_mut().rev() {
-                cell.fodder -= herbivore.graze(cell.fodder);
-                if cell.fodder == 0.0 {
-                    break
+                    for herbivore in cell.animals
+                        .get_mut(&Species::Herbivore).expect("Expected Herbivores")
+                        .iter_mut().rev() {
+                        cell.fodder -= herbivore.graze(cell.fodder);
+                        if cell.fodder == 0.0 {
+                            break;
+                        }
+                    }
+
+                    // Carnivores:
+                    cell.animals
+                        .get_mut(&Species::Carnivore).expect("Expected Carnivores")
+                        .shuffle(self.rng);
+                    let mut herbivores = cell.animals
+                        .get_mut(&Species::Herbivore).expect("Expected Herbivores")
+                        .clone();
+                    for carnivore in cell.animals
+                        .get_mut(&Species::Carnivore).expect("Expected Carnivores")
+                        .iter_mut() {
+                        carnivore.predation(self.rng, &mut herbivores);
+                        if herbivores.is_empty() {
+                            break;
+                        }
+                    }
+                    let _ = cell.animals.insert(Species::Herbivore, herbivores);
                 }
-            }
-
-            // Carnivores:
-            let carnivores = cell.animals
-                .get_mut(&Species::Carnivore).expect("Expected Carnivores");
-            carnivores.shuffle(self.rng);
-            for carnivore in carnivores.iter_mut() {
-                if herbivores.len() == 0 {
-                    break
-                }
-                carnivore.predation(self.rng, &mut herbivores);
-            }
-            let _ = cell.animals.insert(Species::Herbivore, herbivores);
-        }
+            });
     }
 
     fn migrate(&mut self) {
@@ -199,7 +194,7 @@ impl Island<'_> {
             }
         }
         // TODO: Group by cells.
-        migrating.sort_by(|a, b| a.0.cmp(&b.0));
+        migrating.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         'moving: for (idx, coordinate, species) in migrating.iter().rev() {
             let new_cell = self.new_cell(&coordinate, &species);
             match new_cell {
@@ -275,7 +270,7 @@ impl Island<'_> {
 
         // Only consider the four best possibilities.
         if propensity.len() > 4 {
-            propensity.sort_by_key(|&a| OrderedFloat(a));
+            propensity.sort_unstable_by_key(|&a| OrderedFloat(a));
             propensity.drain(4..);
         }
 
@@ -297,12 +292,14 @@ impl Island<'_> {
 
     fn update_inhabited(&mut self) {
         self.inhabited.clear();
-        for (coordinates, cell) in self.cells.iter_mut() {
-            if cell.animals[&Species::Herbivore].len() > 0
-                || cell.animals[&Species::Carnivore].len() > 0 {
+        self.cells.iter()
+            .filter(|(_coordinates, cell)| {
+                cell.animals.get(&Species::Herbivore).map_or(false, |animals| !animals.is_empty())
+                    || cell.animals.get(&Species::Carnivore).map_or(false, |animals| !animals.is_empty())
+            })
+            .for_each(|(coordinates, _cell)| {
                 self.inhabited.push(*coordinates);
-            }
-        }
+            });
     }
 
     fn aging(&mut self) {
