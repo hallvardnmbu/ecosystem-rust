@@ -17,3 +17,11 @@ path = "src/main.rs"
 [[bin]]
 name = "optimization"
 path = "optimization/main.rs"
+
+[[bin]]
+name = "bench_src"
+path = "src/benchmark.rs"
+
+[[bin]]
+name = "bench_opt"
+path = "optimization/benchmark.rs"
