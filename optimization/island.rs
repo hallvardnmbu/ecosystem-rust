@@ -19,14 +19,13 @@ impl Island<'_> {
     pub fn new<'a>(geography: Vec<&'a str>, rng: &'a mut ThreadRng) -> Island<'a> {
 
         // Change `geography` into vector of bytes, and check that edges are 'W'.
-        let geography: Vec<&[u8]> = geography
-            .iter()
+        let geography: Vec<&[u8]> = geography.iter()
             .map(|row| {
                 let row = row.as_bytes();
                 assert_eq!(*row.first().unwrap(), b'W', "Edges must be of 'W'");
                 assert_eq!(*row.last().unwrap(), b'W', "Edges must be of 'W'");
                 row
-            } )
+            })
             .collect();
         if !geography.first().unwrap().iter().all(|&b| b == b'W') {
             panic!("Edges must be of 'W'!")
@@ -307,49 +306,29 @@ impl Island<'_> {
     }
 
     fn aging(&mut self) {
-        for coordinate in self.inhabited.iter() {
-            for animals in self.cells
-                .get_mut(coordinate).expect("Expected Cell")
-                .animals.values_mut() {
-                for animal in animals {
-                    animal.aging();
-                }
-            }
-        }
-    }
-
-    fn weight_loss(&mut self) {
-        for coordinate in self.inhabited.iter() {
-            for animals in self.cells.get_mut(coordinate).expect("Expected Cell").animals.values_mut() {
-                for animal in animals {
-                    animal.lose_weight_year();
-                }
-            }
-        }
-    }
-
-    fn death(&mut self) {
-        for coordinate in self.inhabited.iter() {
-            for (species, animals) in self.cells.get_mut(coordinate).expect("Expected Cell").animals.iter_mut() {
-                let mut dying: Vec<usize> = Vec::new();
-
-                let omega = match species {
-                    Species::Herbivore => Parameters::HERBIVORE.omega,
-                    Species::Carnivore => Parameters::CARNIVORE.omega,
-                };
-                for (idx, animal) in animals.iter_mut().enumerate() {
-                    animal.calculate_fitness();
-                    if animal.weight <= 0.0f32
-                        ||
-                        self.rng.gen::<f32>() < omega * (1.0f32 - animal.fitness) {
-                        dying.push(idx);
-                    }
-                }
-                for idx in dying.iter().rev() {
-                    animals.remove(*idx);
-                }
-            }
-        }
+        self.inhabited.iter()
+            .for_each(|coordinate| {
+                self.cells.get_mut(coordinate).expect("Expected Cell")
+                    .animals.iter_mut()
+                    .for_each(|(species, animals)| {
+                        let omega = match species {
+                            Species::Herbivore => Parameters::HERBIVORE.omega,
+                            Species::Carnivore => Parameters::CARNIVORE.omega,
+                        };
+                        animals.retain_mut(|animal| {
+                            animal.aging();
+                            animal.lose_weight_year();
+                            animal.calculate_fitness();
+                            if animal.weight <= 0.0f32
+                                ||
+                                self.rng.gen::<f32>() < omega * (1.0f32 - animal.fitness) {
+                                false
+                            } else {
+                                true
+                            }
+                        });
+                    });
+            });
     }
 
     pub fn yearly_cycle(&mut self) {
@@ -357,8 +336,6 @@ impl Island<'_> {
         self.feed();
         self.migrate();
         self.aging();
-        self.weight_loss();
-        self.death();
 
         self.year += 1;
     }
