@@ -1,5 +1,5 @@
-#[path = "../optimization/animals.rs"] mod animals;
-#[path = "../optimization/island.rs"] mod island;
+#[path = "../src/animals.rs"] mod animals;
+#[path = "../src/island.rs"] mod island;
 
 fn main() {
     let mut rng = rand::thread_rng();
