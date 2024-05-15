@@ -3,11 +3,7 @@ use ordered_float::OrderedFloat;
 use rand::prelude::ThreadRng;
 use rand::seq::SliceRandom;
 use rand::Rng;
-use crate::animals::Species::{Carnivore, Herbivore};
 use super::animals::*;
-
-pub const ALPHA: f32 = 0.1;
-pub const V_MAX: u16 = 800;
 
 pub struct Island<'a> {
     pub year: u16,
@@ -55,8 +51,8 @@ impl Island<'_> {
                             f_max,
                             fodder: f_max,
                             animals: HashMap::from([
-                                (Herbivore, Vec::new()),
-                                (Carnivore, Vec::new())
+                                (Species::Herbivore, Vec::new()),
+                                (Species::Carnivore, Vec::new())
                             ])
                         })
                     })
@@ -93,37 +89,39 @@ impl Island<'_> {
 
     fn procreate(&mut self) {
         let procreation = HashMap::from([
-            (Herbivore, Parameters::HERBIVORE.procreate),
-            (Carnivore, Parameters::CARNIVORE.procreate),
+            (Species::Herbivore, Parameters::HERBIVORE.procreate),
+            (Species::Carnivore, Parameters::CARNIVORE.procreate),
         ]);
+        let species_keys = Vec::from([Species::Herbivore, Species::Carnivore]);
 
         for coordinate in self.inhabited.iter() {
             let mut babies = HashMap::from([
-                (Herbivore, Vec::new()),
-                (Carnivore, Vec::new()),
+                (Species::Herbivore, Vec::new()),
+                (Species::Carnivore, Vec::new()),
             ]);
             let cell = self.cells
                 .get_mut(coordinate)
                 .expect("Expected Cell.");
-            let species_keys: Vec<_> = cell.animals.keys().cloned().collect();
 
-            for species in species_keys {
+            for species in species_keys.iter() {
                 let probability: f32 = match species {
-                    Herbivore => Parameters::HERBIVORE.gamma * cell.animals[&Herbivore].len() as f32,
-                    Carnivore => Parameters::CARNIVORE.gamma * cell.animals[&Carnivore].len() as f32,
+                    Species::Herbivore => Parameters::HERBIVORE.gamma * cell.animals[species].len() as f32,
+                    Species::Carnivore => Parameters::CARNIVORE.gamma * cell.animals[species].len() as f32,
                 };
 
-                for animal in cell.animals.get_mut(&species).expect("Expected animal.") {
-                    if animal.weight < procreation[&species] {
-                        continue
-                    } else if self.rng.gen::<f32>() >= animal.fitness * probability {
+                for animal in cell.animals.get_mut(species).expect("Expected animals.") {
+                    if animal.weight < procreation[species] {
                         continue
                     }
-                    let babyweight = animal.birthweight(self.rng);
+                    if self.rng.gen::<f32>() >= animal.fitness * probability {
+                        continue
+                    }
+
+                    let babyweight = birthweight(*species, self.rng);
                     if !animal.lose_weight_birth(babyweight) {
                         continue
                     }
-                    babies.get_mut(&species).expect("Expected babies.").push({
+                    babies.get_mut(species).expect("Expected babies.").push({
                         let mut baby = Animal {
                             species: species.clone(),
                             age: 0,
@@ -148,14 +146,14 @@ impl Island<'_> {
             let cell = self.cells
                 .get_mut(coordinate).expect("Expected Cell");
 
-            if &cell.animals[&Herbivore].len() == &0 {
+            if &cell.animals[&Species::Herbivore].len() == &0 {
                 continue
             }
             cell.grow_fodder();
 
             // Herbivores:
             let mut herbivores = cell.animals
-                .get_mut(&Herbivore).expect("Expected Herbivores")
+                .get_mut(&Species::Herbivore).expect("Expected Herbivores")
                 .clone();
             herbivores.sort_by_key(|herbivore| OrderedFloat(herbivore.fitness));
 
@@ -168,27 +166,29 @@ impl Island<'_> {
 
             // Carnivores:
             let carnivores = cell.animals
-                .get_mut(&Carnivore).expect("Expected Carnivores");
+                .get_mut(&Species::Carnivore).expect("Expected Carnivores");
             carnivores.shuffle(self.rng);
             for carnivore in carnivores.iter_mut() {
                 if herbivores.len() == 0 {
                     break
                 }
-                let _ = carnivore.predation(self.rng, &mut herbivores);
+                carnivore.predation(self.rng, &mut herbivores);
             }
-            let _ = cell.animals.insert(Herbivore, herbivores);
+            let _ = cell.animals.insert(Species::Herbivore, herbivores);
         }
     }
 
     fn migrate(&mut self) {
+        // animal idx, coordinate, species
         let mut migrating: Vec<(usize, (usize, usize), Species)> = Vec::new();
 
         for coordinate in self.inhabited.iter() {
             let cell = self.cells.get_mut(coordinate).expect("Expected Cell");
+
             for (species, animals) in cell.animals.iter_mut() {
                 let mu = match species {
-                    Herbivore => Parameters::HERBIVORE.mu,
-                    Carnivore => Parameters::CARNIVORE.mu,
+                    Species::Herbivore => Parameters::HERBIVORE.mu,
+                    Species::Carnivore => Parameters::CARNIVORE.mu,
                 };
                 for (idx, animal) in animals.iter_mut().enumerate() {
                     if self.rng.gen::<f32>() > mu * animal.fitness {
@@ -199,11 +199,12 @@ impl Island<'_> {
                 }
             }
         }
+        // TODO: Group by cells.
         migrating.sort_by(|a, b| a.0.cmp(&b.0));
-        for (idx, coordinate, species) in migrating.iter().rev() {
+        'moving: for (idx, coordinate, species) in migrating.iter().rev() {
             let new_cell = self.new_cell(&coordinate, &species);
             match new_cell {
-                None => continue,
+                None => continue 'moving,
                 Some(new_coordinate) => {
                     let animal = self.cells.get_mut(&coordinate).unwrap().animals.get_mut(&species).unwrap().remove(*idx);
                     self.cells.get_mut(&new_coordinate).unwrap().animals.get_mut(&species).unwrap().push(animal);
@@ -216,8 +217,8 @@ impl Island<'_> {
     fn new_cell(&mut self, (x, y): &(usize, usize), species: &Species) -> Option<(usize, usize)> {
 
         let (stride, hunger) = match species {
-            Herbivore => (Parameters::HERBIVORE.stride, Parameters::HERBIVORE.hunger as u128),
-            Carnivore => (Parameters::CARNIVORE.stride, Parameters::CARNIVORE.hunger as u128),
+            Species::Herbivore => (Parameters::HERBIVORE.stride, Parameters::HERBIVORE.hunger as u128),
+            Species::Carnivore => (Parameters::CARNIVORE.stride, Parameters::CARNIVORE.hunger as u128),
         };
 
         let mut possibilities: Vec<(usize, usize)> = Vec::new();
@@ -248,14 +249,14 @@ impl Island<'_> {
         let mut propensity: Vec<f32> = Vec::new();
         for idx in possibilities.iter() {
             let fodder = match species {
-                Herbivore => {
+                Species::Herbivore => {
                     self.cells[idx].fodder as f32
                 },
-                Carnivore => {
+                Species::Carnivore => {
                     let mut fodder = 0.0f32;
                     for animal in self.cells
                         .get_mut(idx).expect("Expected Cell")
-                        .animals.get_mut(&Herbivore).expect("Expected Herbivore") {
+                        .animals.get_mut(&Species::Herbivore).expect("Expected Herbivore") {
                         fodder += animal.weight;
                     }
                     fodder
@@ -298,8 +299,8 @@ impl Island<'_> {
     fn update_inhabited(&mut self) {
         self.inhabited.clear();
         for (coordinates, cell) in self.cells.iter_mut() {
-            if cell.animals[&Herbivore].len() > 0
-                || cell.animals[&Carnivore].len() > 0 {
+            if cell.animals[&Species::Herbivore].len() > 0
+                || cell.animals[&Species::Carnivore].len() > 0 {
                 self.inhabited.push(*coordinates);
             }
         }
@@ -333,16 +334,14 @@ impl Island<'_> {
                 let mut dying: Vec<usize> = Vec::new();
 
                 let omega = match species {
-                    Herbivore => Parameters::HERBIVORE.omega,
-                    Carnivore => Parameters::CARNIVORE.omega,
+                    Species::Herbivore => Parameters::HERBIVORE.omega,
+                    Species::Carnivore => Parameters::CARNIVORE.omega,
                 };
                 for (idx, animal) in animals.iter_mut().enumerate() {
                     animal.calculate_fitness();
-                    if animal.weight
-                        <= 0.0f32
+                    if animal.weight <= 0.0f32
                         ||
-                        self.rng.gen::<f32>()
-                        < omega * (1.0f32 - animal.fitness) {
+                        self.rng.gen::<f32>() < omega * (1.0f32 - animal.fitness) {
                         dying.push(idx);
                     }
                 }
@@ -365,7 +364,7 @@ impl Island<'_> {
     }
 
     pub fn animals(&mut self) -> (
-        u32, HashMap<Species, u32>, HashMap<(usize, usize), HashMap<Species, u32>>
+        HashMap<Species, u32>, HashMap<(usize, usize), HashMap<Species, u32>>
     )  {
         let mut h: u32 = 0;
         let mut c: u32 = 0;
@@ -379,15 +378,15 @@ impl Island<'_> {
                 .animals.iter() {
                 let n = animals.len() as u32;
                 match species {
-                    Herbivore => { h += n; },
-                    Carnivore => { c += n; },
+                    Species::Herbivore => { h += n; },
+                    Species::Carnivore => { c += n; },
                 };
                 _hc.insert(*species, n + _hc.get(species).unwrap_or(&0));
             }
         }
-        (h + c, HashMap::from([
-            (Herbivore, h),
-            (Carnivore, c)
+        (HashMap::from([
+            (Species::Herbivore, h),
+            (Species::Carnivore, c)
         ]), hc)
     }
 }
@@ -410,9 +409,8 @@ impl Cell {
         }
         let growth = Cell::V_MAX * (
                 1.0 - Cell::ALPHA
-                    * (self.f_max - self.fodder)
-                    / self.f_max
-            );
-        self.fodder = self.f_max.min(self.fodder + growth);
+                    * (self.f_max - self.fodder) / self.f_max
+        );
+        self.fodder = f32::min(self.f_max, self.fodder + growth);
     }
 }

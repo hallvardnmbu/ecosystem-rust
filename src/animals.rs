@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
@@ -81,12 +82,22 @@ pub enum Species {
     Carnivore
 }
 
+impl Display for Species {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Species::Herbivore => write!(f, "Herbivore"),
+            Species::Carnivore => write!(f, "Carnivore"),
+        }
+    }
+}
+
 pub fn birthweight(species: Species, rng: &mut ThreadRng) -> f32 {
     let (mean, std) = match species {
         Species::Herbivore => (Parameters::HERBIVORE.birth_mean, Parameters::HERBIVORE.birth_std),
         Species::Carnivore => (Parameters::CARNIVORE.birth_mean, Parameters::CARNIVORE.birth_std)
     };
 
+    // TODO: Effektivisere.
     let log_normal = LogNormal::new(mean, std).unwrap();
     log_normal.sample(rng)
 }
@@ -100,21 +111,10 @@ pub struct Animal {
 }
 
 impl Animal {
-    pub fn birthweight(&self, rng: &mut ThreadRng) -> f32 {
-        let (mean, std) = match self.species {
-            Species::Herbivore => (Parameters::HERBIVORE.birth_mean, Parameters::HERBIVORE.birth_std),
-            Species::Carnivore => (Parameters::CARNIVORE.birth_mean, Parameters::CARNIVORE.birth_std)
-        };
-
-        // TODO: Effektivisere.
-        let log_normal = LogNormal::new(mean, std).unwrap();
-        log_normal.sample(rng)
-    }
-
     pub fn gain_weight(&mut self, food: f32) {
         match self.species {
-            Species::Herbivore => self.weight += Parameters::HERBIVORE.beta * food,
-            Species::Carnivore => self.weight += Parameters::CARNIVORE.beta * food,
+            Species::Herbivore => self.weight += &Parameters::HERBIVORE.beta * food,
+            Species::Carnivore => self.weight += &Parameters::CARNIVORE.beta * food,
         };
         self.calculate_fitness();
     }
@@ -125,9 +125,9 @@ impl Animal {
 
     pub fn lose_weight_year(&mut self) {
         match self.species {
-            Species::Herbivore => self.weight -= Parameters::HERBIVORE.eta * self.weight,
-            Species::Carnivore => self.weight -= Parameters::CARNIVORE.eta * self.weight,
-        }
+            Species::Herbivore => self.weight -= &Parameters::HERBIVORE.eta * self.weight,
+            Species::Carnivore => self.weight -= &Parameters::CARNIVORE.eta * self.weight,
+        };
     }
 
     pub fn lose_weight_birth(&mut self, baby_weight: f32) -> bool {
@@ -199,6 +199,7 @@ impl Animal {
         let mut eaten: f32 = 0.0;
         let mut removing: Vec<usize> = Vec::new();
 
+        // As a fail-safe I choose to name the loop, to be sure that breaking is correct.
         'herbivores: for (idx, herbivore) in herbivores.iter_mut().enumerate() {
             let herbivore_fitness = herbivore.fitness;
             let carnivore_fitness = self.fitness;
@@ -217,14 +218,17 @@ impl Animal {
                 removing.push(idx);
 
                 let rest = Parameters::CARNIVORE.hunger - eaten;
+
                 let herbivore_weight = herbivore.weight;
 
-                if herbivore_weight < rest {
+                if rest <= 0.0 {
+                    break 'herbivores;
+                } else if herbivore_weight < rest {
                     eaten += herbivore_weight;
                     self.gain_weight(herbivore_weight);
                 } else {
                     self.gain_weight(rest);
-                    break 'herbivores;  // As a fail-safe I choose to name the loop, to be sure.
+                    break 'herbivores;
                 }
             }
         }
