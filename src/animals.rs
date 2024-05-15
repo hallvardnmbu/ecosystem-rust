@@ -111,7 +111,7 @@ pub struct Animal {
 }
 
 impl Animal {
-    pub fn gain_weight(&mut self, food: f32) {
+    pub fn eat(&mut self, food: f32) {
         match self.species {
             Species::Herbivore => self.weight += &Parameters::HERBIVORE.beta * food,
             Species::Carnivore => self.weight += &Parameters::CARNIVORE.beta * food,
@@ -182,10 +182,10 @@ impl Animal {
         }
 
         if available_fodder >= Parameters::HERBIVORE.hunger {
-            self.gain_weight(Parameters::HERBIVORE.hunger);
+            self.eat(Parameters::HERBIVORE.hunger);
             Parameters::HERBIVORE.hunger
         } else {
-            self.gain_weight(available_fodder);
+            self.eat(available_fodder);
             available_fodder
         }
     }
@@ -225,9 +225,9 @@ impl Animal {
                     break 'herbivores;
                 } else if herbivore_weight < rest {
                     eaten += herbivore_weight;
-                    self.gain_weight(herbivore_weight);
+                    self.eat(herbivore_weight);
                 } else {
-                    self.gain_weight(rest);
+                    self.eat(rest);
                     break 'herbivores;
                 }
             }

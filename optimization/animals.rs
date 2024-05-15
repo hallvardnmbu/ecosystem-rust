@@ -232,43 +232,5 @@ impl Animal {
             }
             true  // Keep the herbivore
         });
-
-
-        let mut removing: Vec<usize> = Vec::new();
-
-        // As a fail-safe I choose to name the loop, to be sure that breaking is correct.
-        'herbivores: for (idx, herbivore) in herbivores.iter_mut().enumerate() {
-
-            let difference = self.fitness - herbivore.fitness;
-
-            let probability: f32;
-            if self.fitness <= herbivore.fitness {
-                probability = 0.0;
-            } else if 0.0 < difference && difference < Parameters::CARNIVORE.delta_phi_max {
-                probability = difference / Parameters::CARNIVORE.delta_phi_max;
-            } else {
-                probability = 1.0;
-            }
-
-            if rng.gen::<f32>() >= probability {
-                continue 'herbivores;
-            }
-
-            removing.push(idx);
-
-            let rest = Parameters::CARNIVORE.hunger - eaten;
-            if rest <= 0.0 {
-                break 'herbivores;
-            } else if herbivore.weight < rest {
-                eaten += herbivore.weight;
-                self.eat(herbivore.weight);
-            } else {
-                self.eat(rest);
-                break 'herbivores;
-            }
-        }
-        for idx in removing.iter().rev() {
-            herbivores.remove(*idx);
-        }
     }
 }

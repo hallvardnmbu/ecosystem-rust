@@ -15,5 +15,5 @@ name = "main"
 path = "src/main.rs"
 
 [[bin]]
-name = "benchmark"
-path = "src/benchmark.rs"
+name = "optimization"
+path = "optimization/main.rs"

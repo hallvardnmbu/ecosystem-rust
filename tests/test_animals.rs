@@ -26,7 +26,7 @@ mod tests {
             age: 5,
             fitness: 0.5,
         };
-        animal.gain_weight(5);
+        animal.eat(5);
         assert_eq!(animal.weight, 15.0);
     }
 
