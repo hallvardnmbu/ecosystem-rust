@@ -33,5 +33,5 @@ fn main() {
         ((2, 2), animals::Species::Carnivore, 10)
     ]);
 
-    sim.simulate(1000, true);
+    sim.simulate(2, true);
 }

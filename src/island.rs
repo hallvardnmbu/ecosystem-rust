@@ -1,3 +1,4 @@
+use indexmap::IndexMap;
 use std::collections::HashMap;
 use ordered_float::OrderedFloat;
 use rand::prelude::ThreadRng;
@@ -9,17 +10,18 @@ pub struct Island<'a> {
     pub year: u16,
     pub geography: Vec<&'a [u8]>,
 
-    cells: HashMap<(usize, usize), Cell>,
-    inhabited: Vec<(usize, usize)>,
+    pub cells: IndexMap<(usize, usize), Cell>,
+    pub inhabited: Vec<(usize, usize)>,
 
-    rng: &'a mut ThreadRng,
+    pub rng: &'a mut ThreadRng,
 }
 
 impl Island<'_> {
     pub fn new<'a>(geography: Vec<&'a str>, rng: &'a mut ThreadRng) -> Island<'a> {
 
         // Change `geography` into vector of bytes, and check that edges are 'W'.
-        let geography: Vec<&[u8]> = geography.iter()
+        let geography: Vec<&[u8]> = geography
+            .iter()
             .map(|row| {
                 let row = row.as_bytes();
                 assert_eq!(*row.first().unwrap(), b'W', "Edges must be of 'W'");
@@ -34,7 +36,7 @@ impl Island<'_> {
             panic!("Edges must be of 'W'!")
         }
 
-        let cells: HashMap<(usize, usize), Cell> = geography
+        let cells: IndexMap<(usize, usize), Cell> = geography
             .iter().enumerate()
             .flat_map(|(i, row)| {
                 row.iter().enumerate()
@@ -49,7 +51,7 @@ impl Island<'_> {
                         ((i, j), Cell {
                             f_max,
                             fodder: f_max,
-                            animals: HashMap::from([
+                            animals: IndexMap::from([
                                 (Species::Herbivore, Vec::new()),
                                 (Species::Carnivore, Vec::new())
                             ])
@@ -87,7 +89,7 @@ impl Island<'_> {
     }
 
     fn procreate(&mut self) {
-        let procreation = HashMap::from([
+        let procreation = IndexMap::from([
             (Species::Herbivore, Parameters::HERBIVORE.procreate),
             (Species::Carnivore, Parameters::CARNIVORE.procreate),
         ]);
@@ -200,8 +202,9 @@ impl Island<'_> {
             match new_cell {
                 None => continue 'moving,
                 Some(new_coordinate) => {
-                    let animal = self.cells.get_mut(&coordinate).unwrap().animals.get_mut(&species).unwrap().remove(*idx);
-                    self.cells.get_mut(&new_coordinate).unwrap().animals.get_mut(&species).unwrap().push(animal);
+                    let animal = self.cells.get_mut(coordinate).unwrap().animals.get_mut(species).unwrap().remove(*idx);
+                    self.cells.get_mut(&new_coordinate).unwrap().animals.get_mut(species).unwrap
+                    ().push(animal);
                 }
             }
         }
@@ -338,14 +341,14 @@ impl Island<'_> {
     }
 
     pub fn animals(&mut self) -> (
-        HashMap<Species, u32>, HashMap<(usize, usize), HashMap<Species, u32>>
+        IndexMap<Species, u32>, IndexMap<(usize, usize), IndexMap<Species, u32>>
     )  {
         let mut h: u32 = 0;
         let mut c: u32 = 0;
-        let mut hc: HashMap<(usize, usize), HashMap<Species, u32>> = HashMap::new();
+        let mut hc: IndexMap<(usize, usize), IndexMap<Species, u32>> = IndexMap::new();
 
         for coordinate in self.inhabited.iter() {
-            hc.insert(*coordinate, HashMap::new());
+            hc.insert(*coordinate, IndexMap::new());
             let _hc = hc.get_mut(coordinate).expect("Expected coordinate");
 
             for (species, animals) in self.cells
@@ -359,7 +362,7 @@ impl Island<'_> {
                 _hc.insert(*species, n + _hc.get(species).unwrap_or(&0));
             }
         }
-        (HashMap::from([
+        (IndexMap::from([
             (Species::Herbivore, h),
             (Species::Carnivore, c)
         ]), hc)
@@ -369,7 +372,7 @@ impl Island<'_> {
 struct Cell {
     f_max: f32,
     fodder: f32,
-    animals: HashMap<Species, Vec<Animal>>,
+    animals: IndexMap<Species, Vec<Animal>>,
 }
 
 impl Cell {

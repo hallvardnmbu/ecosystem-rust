@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use rand::prelude::ThreadRng;
 use super::animals::*;
 use super::island::*;
@@ -8,16 +9,16 @@ pub struct Simulation<'a> {
     pub island: Island<'a>,
     pub graphics: Graphics,
 
-    animals: HashMap<Species, Vec<u32>>,
-    placement: HashMap<(usize, usize), HashMap<Species, Vec<u32>>>,
+    animals: IndexMap<Species, Vec<u32>>,
+    placement: IndexMap<(usize, usize), IndexMap<Species, Vec<u32>>>,
 }
 
 impl Simulation<'_> {
     pub fn new<'a>(geography: Vec<&'a str>, rng: &'a mut ThreadRng, path: &'static str) ->
                                                                                        Simulation<'a> {
         let isl = Island::new(geography, rng);
-        let mut animals = HashMap::new();
-        let mut placement = HashMap::new();
+        let mut animals = IndexMap::new();
+        let mut placement = IndexMap::new();
 
         for species in [Species::Herbivore, Species::Carnivore].iter() {
             animals.insert(*species, Vec::new());
@@ -25,7 +26,7 @@ impl Simulation<'_> {
 
         for x in 0..isl.geography.len() {
             for y in 0..isl.geography[0].len() {
-                let mut species = HashMap::new();
+                let mut species = IndexMap::new();
                 for _species in [Species::Herbivore, Species::Carnivore].iter() {
                     species.insert(*_species, Vec::new());
                 }

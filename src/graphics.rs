@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use indexmap::IndexMap;
 use plotters::prelude::*;
 use crate::animals::Species;
 
@@ -24,7 +25,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub fn graph(&self, data: &HashMap<Species, Vec<u32>>) {
+    pub fn graph(&self, data: &IndexMap<Species, Vec<u32>>) {
         let root = BitMapBackend::new(&self.path, (1024, 768)).into_drawing_area();
         root.fill(&Colour::BACKGROUND.colour()).expect("Failed to fill the drawing area");
 

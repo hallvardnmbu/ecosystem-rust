@@ -97,7 +97,6 @@ pub fn birthweight(species: Species, rng: &mut ThreadRng) -> f32 {
         Species::Carnivore => (Parameters::CARNIVORE.birth_mean, Parameters::CARNIVORE.birth_std)
     };
 
-    // TODO: Effektivisere.
     let log_normal = LogNormal::new(mean, std).unwrap();
     log_normal.sample(rng)
 }
