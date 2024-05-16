@@ -1,4 +1,5 @@
 use std::fmt::{Display, Formatter};
+use lazy_static::lazy_static;
 use rand::Rng;
 use rand::rngs::ThreadRng;
 use rand_distr::{Distribution, LogNormal};
@@ -46,7 +47,6 @@ impl Parameters {
         stride: 1,
 
         procreate: 0.22 * (10.0 + 4.0),  // zeta * (w_birth + sigma_birth)
-
         birth_mean: 2.228375090434909,   // log((w_birth^2) / sqrt(w_birth^2 + sigma_birth^2))
         birth_std: 0.3852531701599264,   // sqrt(log(1 + (sigma_birth^2 / w_birth^2)))
     };
@@ -70,20 +70,33 @@ impl Parameters {
         stride: 3,
 
         procreate: 3.5 * (6.0 + 1.0),    // zeta * (w_birth + sigma_birth)
-
         birth_mean: 1.7780599821339977,  // log((w_birth^2) / sqrt(w_birth^2 + sigma_birth^2))
         birth_std: 0.16552635496534787,  // sqrt(log(1 + (sigma_birth^2 / w_birth^2)))
     };
 }
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone, Copy)]
+lazy_static! {
+    static ref HERBIVORE_DISTRIBUTION: LogNormal<f32> =
+    LogNormal::new(
+        Parameters::HERBIVORE.birth_mean,
+        Parameters::HERBIVORE.birth_std,
+    ).unwrap();
+
+    static ref CARNIVORE_DISTRIBUTION: LogNormal<f32> =
+    LogNormal::new(
+        Parameters::CARNIVORE.birth_mean,
+        Parameters::CARNIVORE.birth_std,
+    ).unwrap();
+}
+
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
 pub enum Species {
     Herbivore,
     Carnivore
 }
 
 impl Display for Species {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt<'a>(&self, f: &mut Formatter<'a>) -> std::fmt::Result {
         match self {
             Species::Herbivore => write!(f, "Herbivore"),
             Species::Carnivore => write!(f, "Carnivore"),
@@ -92,17 +105,14 @@ impl Display for Species {
 }
 
 pub fn birthweight(species: Species, rng: &mut ThreadRng) -> f32 {
-    let (mean, std) = match species {
-        Species::Herbivore => (Parameters::HERBIVORE.birth_mean, Parameters::HERBIVORE.birth_std),
-        Species::Carnivore => (Parameters::CARNIVORE.birth_mean, Parameters::CARNIVORE.birth_std)
+    let distribution = match species {
+        Species::Herbivore => &*HERBIVORE_DISTRIBUTION,
+        Species::Carnivore => &*CARNIVORE_DISTRIBUTION,
     };
-
-    // TODO: Effektivisere.
-    let log_normal = LogNormal::new(mean, std).unwrap();
-    log_normal.sample(rng)
+    distribution.sample(rng)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Animal {
     pub species: Species,
     pub weight: f32,
@@ -152,16 +162,16 @@ impl Animal {
 
         let (phi_age, a_half, phi_weight, w_half) = match self.species {
             Species::Herbivore => (
-                Parameters::HERBIVORE.phi_age,
-                Parameters::HERBIVORE.a_half,
-                Parameters::HERBIVORE.phi_weight,
-                Parameters::HERBIVORE.w_half,
+                &Parameters::HERBIVORE.phi_age,
+                &Parameters::HERBIVORE.a_half,
+                &Parameters::HERBIVORE.phi_weight,
+                &Parameters::HERBIVORE.w_half,
             ),
             Species::Carnivore => (
-                Parameters::CARNIVORE.phi_age,
-                Parameters::CARNIVORE.a_half,
-                Parameters::CARNIVORE.phi_weight,
-                Parameters::CARNIVORE.w_half,
+                &Parameters::CARNIVORE.phi_age,
+                &Parameters::CARNIVORE.a_half,
+                &Parameters::CARNIVORE.phi_weight,
+                &Parameters::CARNIVORE.w_half,
             ),
         };
         let q_pos = (1.0
@@ -175,18 +185,18 @@ impl Animal {
         self.fitness = q_pos * q_neg;
     }
 
-    pub fn graze(&mut self, available_fodder: f32) -> f32 {
+    pub fn graze(&mut self, available: f32) -> f32 {
         match self.species {
             Species::Carnivore => panic!("Carnivores can't graze!"),
             _ => ()
         }
 
-        if available_fodder >= Parameters::HERBIVORE.hunger {
+        if available >= Parameters::HERBIVORE.hunger {
             self.eat(Parameters::HERBIVORE.hunger);
             Parameters::HERBIVORE.hunger
         } else {
-            self.eat(available_fodder);
-            available_fodder
+            self.eat(available);
+            available
         }
     }
 
@@ -197,43 +207,30 @@ impl Animal {
         }
 
         let mut eaten: f32 = 0.0;
-        let mut removing: Vec<usize> = Vec::new();
-
-        // As a fail-safe I choose to name the loop, to be sure that breaking is correct.
-        'herbivores: for (idx, herbivore) in herbivores.iter_mut().enumerate() {
-            let herbivore_fitness = herbivore.fitness;
-            let carnivore_fitness = self.fitness;
-            let difference = carnivore_fitness - herbivore_fitness;
-
-            let prob: f32;
-            if carnivore_fitness <= herbivore_fitness {
-                prob = 0.0;
-            } else if 0.0 < difference && difference < Parameters::CARNIVORE.delta_phi_max {
-                prob = difference / Parameters::CARNIVORE.delta_phi_max;
-            } else {
-                prob = 1.0;
-            }
-
-            if rng.gen::<f32>() < prob {
-                removing.push(idx);
-
-                let rest = Parameters::CARNIVORE.hunger - eaten;
-
-                let herbivore_weight = herbivore.weight;
-
-                if rest <= 0.0 {
-                    break 'herbivores;
-                } else if herbivore_weight < rest {
-                    eaten += herbivore_weight;
-                    self.eat(herbivore_weight);
+        herbivores.retain(|herbivore| {
+            if self.fitness > herbivore.fitness {
+                let difference = self.fitness - herbivore.fitness;
+                let probability = if 0.0 < difference && difference < Parameters::CARNIVORE
+                    .delta_phi_max {
+                    difference / Parameters::CARNIVORE.delta_phi_max
                 } else {
-                    self.eat(rest);
-                    break 'herbivores;
+                    1.0
+                };
+                if rng.gen::<f32>() < probability {
+                    let rest = Parameters::CARNIVORE.hunger - eaten;
+                    if rest > 0.0 {
+                        let food = if herbivore.weight < rest {
+                            herbivore.weight
+                        } else {
+                            rest
+                        };
+                        eaten += food;
+                        self.eat(food);
+                    }
+                    return false;  // Remove the herbivore
                 }
             }
-        }
-        for idx in removing.iter().rev() {
-            herbivores.remove(*idx);
-        }
+            true  // Keep the herbivore
+        });
     }
 }

@@ -26,7 +26,7 @@ fn main() {
     ];
 
     let mut sim = simulation::Simulation::new(
-        geography, &mut rng, "graph.png"
+        geography, &mut rng, "graph_new.png"
     );
     sim.add_population(vec![
         ((2, 2), animals::Species::Herbivore, 100),

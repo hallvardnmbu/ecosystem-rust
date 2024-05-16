@@ -11,17 +11,17 @@ ordered-float = "4.2.0"
 plotters = "0.3.5"
 
 [[bin]]
-name = "main"
+name = "current"
 path = "src/main.rs"
 
 [[bin]]
-name = "optimization"
-path = "optimization/main.rs"
+name = "outdated"
+path = "outdated/main.rs"
 
 [[bin]]
-name = "bench_src"
+name = "bench"
 path = "src/benchmark.rs"
 
 [[bin]]
-name = "bench_opt"
-path = "optimization/benchmark.rs"
+name = "bench_outdated"
+path = "outdated/benchmark.rs"

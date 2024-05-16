@@ -15,7 +15,7 @@ pub struct Simulation<'a> {
 impl Simulation<'_> {
     pub fn new<'a>(geography: Vec<&'a str>, rng: &'a mut ThreadRng, path: &'static str) ->
                                                                                        Simulation<'a> {
-        let mut isl = Island::new(geography, rng);
+        let isl = Island::new(geography, rng);
         let mut animals = HashMap::new();
         let mut placement = HashMap::new();
 

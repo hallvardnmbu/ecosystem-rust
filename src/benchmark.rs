@@ -1,5 +1,5 @@
-#[path = "../src/animals.rs"] mod animals;
-#[path = "../src/island.rs"] mod island;
+use super::animals;
+use super::island;
 
 fn main() {
     let mut times = Vec::new();
@@ -45,5 +45,5 @@ fn main() {
         times.push(duration);
     }
     let mean = times.iter().sum::<std::time::Duration>() / times.len() as u32;
-    println!("Original mean time {:?}", mean);
+    println!("Optimized mean time {:?}", mean);
 }
