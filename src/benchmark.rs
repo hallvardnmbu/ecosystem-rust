@@ -1,5 +1,5 @@
-use super::animals;
-use super::island;
+mod animals;
+mod island;
 
 fn main() {
     let mut times = Vec::new();

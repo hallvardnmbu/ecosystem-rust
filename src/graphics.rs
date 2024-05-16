@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use indexmap::IndexMap;
 use plotters::prelude::*;
 use crate::animals::Species;

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use indexmap::IndexMap;
 use rand::prelude::ThreadRng;
 use super::animals::*;

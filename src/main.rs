@@ -1,7 +1,7 @@
 pub mod animals;
 pub mod island;
 mod graphics;
-mod benchmark;
+// mod benchmark;
 mod simulation;
 
 fn main() {
